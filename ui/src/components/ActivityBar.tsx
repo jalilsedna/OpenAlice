@@ -1,4 +1,4 @@
-import { type LucideIcon, MessageSquare, Inbox, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare, ChevronDown } from 'lucide-react'
+import { type LucideIcon, MessageSquare, MessagesSquare, Inbox, Bell, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare, ChevronDown } from 'lucide-react'
 import { type Page } from '../App'
 import { useWorkspace } from '../tabs/store'
 import type { ActivitySection, ViewSpec } from '../tabs/types'
@@ -11,16 +11,18 @@ import { useActivityBarCollapse } from '../live/activity-bar-collapse'
  */
 function activitySectionFor(page: Page): ActivitySection {
   switch (page) {
-    case 'chat':           return 'chat'
-    case 'inbox':          return 'inbox'
-    case 'workspaces':     return 'workspaces'
-    case 'trading-as-git': return 'trading-as-git'
-    case 'settings':       return 'settings'
-    case 'dev':            return 'dev'
-    case 'market':         return 'market'
-    case 'portfolio':      return 'portfolio'
-    case 'automation':     return 'automation'
-    case 'news':           return 'news'
+    case 'chat':                 return 'chat'
+    case 'inbox':                return 'inbox'
+    case 'workspaces':           return 'workspaces'
+    case 'trading-as-git':       return 'trading-as-git'
+    case 'settings':             return 'settings'
+    case 'dev':                  return 'dev'
+    case 'market':               return 'market'
+    case 'portfolio':            return 'portfolio'
+    case 'automation':           return 'automation'
+    case 'news':                 return 'news'
+    case 'traditional-chat':     return 'traditional-chat'
+    case 'notifications-legacy': return 'notifications-legacy'
   }
 }
 
@@ -54,15 +56,28 @@ interface NavLeaf {
 interface NavSection {
   sectionLabel: string
   items: NavLeaf[]
+  /** When true, the section starts collapsed on a user's first visit
+   *  (or after they clear localStorage). User-toggled collapse state
+   *  still wins — `defaultCollapsed` only fills in the absence-of-key
+   *  default. Useful for "this section exists but isn't the recommended
+   *  path" framing (Legacy). */
+  defaultCollapsed?: boolean
 }
 
 const NAV_SECTIONS: NavSection[] = [
+  // Top — primary nav, always visible (no header, not collapsible).
+  // Mental model: Workspace is the atom for all work units. Chat is
+  // the high-frequency subset's shortcut — chat-template workspaces
+  // got their own top-level entry because that flow is common enough
+  // to warrant direct access. Workspaces (the all-templates index)
+  // sits alongside; the two aren't redundant: Workspaces = whole set,
+  // Chat = chat-shape subset shortcut.
   {
     sectionLabel: '',
     items: [
-      { page: 'chat',           label: 'Chat',           icon: MessageSquare },
       { page: 'inbox',          label: 'Inbox',          icon: Inbox, defaultTab: { kind: 'inbox', params: {} } },
       { page: 'workspaces',     label: 'Workspaces',     icon: TerminalSquare },
+      { page: 'chat',           label: 'Chat',           icon: MessageSquare },
       { page: 'portfolio',      label: 'Portfolio',      icon: LineChart, defaultTab: { kind: 'portfolio', params: {} } },
       { page: 'trading-as-git', label: 'Trading as Git', icon: GitBranch },
       { page: 'market',         label: 'Market',         icon: BarChart3 },
@@ -70,16 +85,22 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    sectionLabel: 'Agent',
-    items: [
-      { page: 'automation', label: 'Automation', icon: Zap, defaultTab: { kind: 'automation', params: { section: 'flow' } } },
-    ],
-  },
-  {
     sectionLabel: 'System',
     items: [
       { page: 'settings', label: 'Settings', icon: Settings },
       { page: 'dev',      label: 'Dev',      icon: Code2 },
+    ],
+  },
+  // Legacy — pre-Workspace surfaces kept around for backwards-compat
+  // and connector flows that can't host a CLI. Default-collapsed so
+  // the "this isn't the recommended path" signal is visually loud.
+  {
+    sectionLabel: 'Legacy',
+    defaultCollapsed: true,
+    items: [
+      { page: 'traditional-chat',     label: 'Traditional chat', icon: MessagesSquare },
+      { page: 'notifications-legacy', label: 'Notifications',    icon: Bell, defaultTab: { kind: 'notifications-inbox', params: {} } },
+      { page: 'automation',           label: 'Automation',       icon: Zap, defaultTab: { kind: 'automation', params: { section: 'flow' } } },
     ],
   },
 ]
@@ -105,7 +126,7 @@ export function ActivityBar({ open, onClose }: ActivityBarProps) {
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
   const unreadInbox = useUnreadInboxCount()
   const collapsedSections = useActivityBarCollapse((s) => s.collapsedSections)
-  const toggleSection = useActivityBarCollapse((s) => s.toggleSection)
+  const setCollapsed = useActivityBarCollapse((s) => s.setCollapsed)
 
   return (
     <>
@@ -144,14 +165,25 @@ export function ActivityBar({ open, onClose }: ActivityBarProps) {
         <nav className="flex-1 flex flex-col px-2 overflow-y-auto pb-3">
           {NAV_SECTIONS.map((section, si) => {
             const labeled = section.sectionLabel.length > 0
-            const isCollapsed = labeled && Boolean(collapsedSections[section.sectionLabel])
+            // User toggle wins over default. The collapse store stores
+            // user's explicit preference (true/false); absence means
+            // "fall back to defaultCollapsed". Once the user touches a
+            // section, their preference is sticky.
+            const stored = labeled ? collapsedSections[section.sectionLabel] : undefined
+            const isCollapsed = labeled && (
+              stored !== undefined ? stored : Boolean(section.defaultCollapsed)
+            )
             const showItems = !isCollapsed
             return (
               <div key={si} className={si > 0 ? 'mt-4' : ''}>
                 {labeled && (
                   <button
                     type="button"
-                    onClick={() => toggleSection(section.sectionLabel)}
+                    onClick={() => setCollapsed(
+                      section.sectionLabel,
+                      !isCollapsed,
+                      section.defaultCollapsed,
+                    )}
                     className="w-full flex items-center gap-1.5 px-3 mb-1 py-1 text-[11px] font-medium text-text-muted/60 hover:text-text-muted uppercase tracking-wider transition-colors"
                     aria-expanded={!isCollapsed}
                     aria-controls={`activity-section-${si}`}

@@ -13,6 +13,8 @@
 
 import type { ComponentType } from 'react'
 import { ChatChannelListContainer } from './components/ChatChannelListContainer'
+import { TraditionalChatSidebar } from './components/TraditionalChatSidebar'
+import { NotificationsLegacySidebar } from './components/NotificationsLegacySidebar'
 import { NewChannelButton } from './components/NewChannelButton'
 import { InboxSidebar } from './components/InboxSidebar'
 import { WorkspacesSidebar } from './components/workspace/WorkspacesSidebar'
@@ -35,10 +37,12 @@ export interface SidebarSection {
 }
 
 const SECTION_BY_KEY: Record<ActivitySection, SidebarSection> = {
+  // Chat is the workspace-chat shortcut now — the "夺舍" of the Chat
+  // shortcut by chat-template workspaces. Channel creation is no longer
+  // an Action here; that affordance moved to traditional-chat.
   chat: {
     title: 'Chat',
     Secondary: ChatChannelListContainer,
-    Actions: NewChannelButton,
   },
   inbox: {
     title: 'Inbox',
@@ -75,6 +79,18 @@ const SECTION_BY_KEY: Record<ActivitySection, SidebarSection> = {
   news: {
     title: 'News',
     Secondary: NewsSidebar,
+  },
+  // Legacy entries — pre-Workspace artifacts. Sidebars include a
+  // muted explanatory note so users opening them understand the
+  // lifecycle context.
+  'traditional-chat': {
+    title: 'Traditional chat',
+    Secondary: TraditionalChatSidebar,
+    Actions: NewChannelButton,
+  },
+  'notifications-legacy': {
+    title: 'Notifications',
+    Secondary: NotificationsLegacySidebar,
   },
 }
 

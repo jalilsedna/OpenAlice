@@ -51,6 +51,8 @@ export type ActivitySection =
   | 'portfolio'
   | 'automation'
   | 'news'
+  | 'traditional-chat'
+  | 'notifications-legacy'
 
 export interface Tab {
   id: string

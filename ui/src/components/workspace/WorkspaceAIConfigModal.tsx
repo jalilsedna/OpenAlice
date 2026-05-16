@@ -37,10 +37,12 @@ interface FormState {
   wireApi: 'chat' | 'responses'
 }
 
-// codex-cli ≥ 0.130 dropped the legacy `wire_api = "chat"` shape; "responses"
-// is now the only supported value (see github.com/openai/codex/discussions/7782).
-// We still surface "chat" as a labelled-deprecated option so users on older
-// codex builds aren't surprised, but the default is "responses".
+// codex-cli ≥ 0.130 hard-rejects `wire_api = "chat"`. The AgentConfig schema
+// still carries `wireApi` (the backend writer / file IO is shared with other
+// codex-shaped configs), but this modal locks it to "responses" for every
+// codex provider — a stale 'chat' loaded from disk is normalized on display,
+// so the next Save silently corrects it.
+// Ref: github.com/openai/codex/discussions/7782
 const EMPTY_FORM: FormState = { baseUrl: '', apiKey: '', model: '', wireApi: 'responses' }
 
 function configToForm(cfg: AgentConfig | null): FormState {
@@ -49,7 +51,7 @@ function configToForm(cfg: AgentConfig | null): FormState {
     baseUrl: cfg.baseUrl ?? '',
     apiKey: cfg.apiKey ?? '',
     model: cfg.model ?? '',
-    wireApi: (cfg.wireApi as 'chat' | 'responses') ?? 'responses',
+    wireApi: 'responses',
   }
 }
 
@@ -333,18 +335,17 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
           </div>
 
           {tab === 'codex' && (
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">
-                Wire Format
-              </label>
-              <select
-                value={form.wireApi}
-                onChange={(e) => setForm({ ...form, wireApi: e.target.value as 'chat' | 'responses' })}
-                className={inputClass}
-              >
-                <option value="responses">responses (OpenAI Responses API — required by codex ≥ 0.130)</option>
-                <option value="chat">chat (legacy, OpenAI Chat Completions — removed in codex 0.130+)</option>
-              </select>
+            <div className="rounded-md border border-border bg-bg-secondary/50 px-3 py-2.5 space-y-2">
+              <p className="text-[12px] text-text-muted leading-relaxed">
+                <strong className="text-text">Wire format is locked to <code className="font-mono text-[11.5px]">responses</code>.</strong>{' '}
+                Codex 0.130+ hard-rejects <code className="font-mono text-[11.5px]">wire_api = "chat"</code> and only speaks the OpenAI Responses API.
+              </p>
+              <p className="text-[12px] text-text-muted leading-relaxed">
+                <strong className="text-text">Chat-only providers</strong> (DeepSeek, Qwen, Moonshot, GLM, LM Studio, vLLM, llama.cpp, etc.) don't expose a Responses endpoint and won't work here directly.
+                Run a translation proxy and point Base URL at it — e.g.{' '}
+                <strong className="text-text">OpenRouter</strong> (hosted, BYOK) or{' '}
+                <strong className="text-text">VibeAround</strong> (local) both speak Responses on the wire and forward to Chat Completions backends.
+              </p>
             </div>
           )}
 

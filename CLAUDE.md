@@ -23,6 +23,10 @@ pnpm test           # Unit tests
 
 `pnpm build` uses tsup which is lenient — `tsc --noEmit` catches strict type errors that tsup ignores.
 
+### Cross-platform note
+
+Workspace bootstrap scripts (`src/workspaces/templates/*/bootstrap.sh`) are bash-based. On Windows they require `bash` from Git for Windows (default install) or WSL2. `workspace-creator.ts` already platform-branches the spawn so the same script paths work on win32 — when adding a new template, write bash as usual, but **don't** add POSIX-only commands without checking they ship with Git for Windows's bundled MSYS env (sed/cp/mkdir/basename/printf/source/[[ ]] all work; obscure tools like `jq` do not). See README's *Windows* section for the user-facing story.
+
 ## Subsystem guides
 
 Some parts of this codebase are structured in ways that aren't obvious from

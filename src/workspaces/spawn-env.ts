@@ -49,13 +49,16 @@ export function buildSpawnEnv(
   out['COLORTERM'] = 'truecolor';
   out['TERM_PROGRAM'] = 'openalice-workspaces';
   out['TERM_PROGRAM_VERSION'] = SELF_VERSION;
-  // Override PWD to match the spawn cwd. Without this, the PTY child
-  // inherits the parent's PWD (backend's cwd = OpenAlice repo root), and
-  // tools that read $PWD instead of process.cwd() — notably the Claude
-  // Code CLI when deciding the project key under ~/.claude/projects/ —
-  // misidentify the project root. Symptom: chat workspace transcripts
-  // landing in the wrong dir, `claude --continue/--resume` failing
-  // immediately on resume.
+  // Override PWD to match the spawn cwd. PTY spawn does chdir() to `cwd`,
+  // but env PWD is just the parent's PWD passed verbatim. Claude Code CLI
+  // selects its `~/.claude/projects/<projectKey>/` from $PWD (not from
+  // process.cwd()), so without this override claude writes the workspace's
+  // session jsonl into the backend's projectKey — mixing it with whatever
+  // happens to be running there. On resume, `--continue` looks in the
+  // workspace's own projectKey, finds it empty, and exits 1 → PTY respawn
+  // loop into the circuit breaker. Verified end-to-end against the
+  // `path.trace` log: pre-fix `envPWD` was the OpenAlice repo root while
+  // `spawnCwd` was the workspace dir.
   if (cwd) out['PWD'] = cwd;
   // Caller-supplied per-session env (e.g. AQ_WS_ID, AQ_LAUNCHER_REPO_ROOT)
   // wins over the inherited env so .mcp.json `${VAR}` expansion at Claude

@@ -417,6 +417,31 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
         ...(initialReplayBytes ? { initialReplayBytes } : {}),
       };
       const session = svc.pool.spawn(id, ctx);
+      // Give the child a brief window to prove it stays up. If it exits
+      // within ~800ms (claude --continue against a stale projectKey, broken
+      // .mcp.json, missing trust, etc.) we'd otherwise return 200 OK while
+      // the pool respawn-loops itself into a circuit breaker behind the
+      // user's back. Surface the failure so the caller knows resume failed.
+      const earlyExit = await session.waitForFirstExit(800);
+      if (earlyExit) {
+        svc.pool.disposeToken(token, 'resume_early_exit');
+        await svc.sessionRegistry
+          .update(id, token, { state: 'paused', lastActiveAt: new Date().toISOString() })
+          .catch(() => undefined);
+        launcherLogger.warn('workspace.session_resume_early_exit', {
+          id,
+          sessionId: token,
+          agent: adapter.id,
+          code: earlyExit.code,
+          signal: earlyExit.signal,
+        });
+        return c.json({
+          error: 'spawn_died',
+          message: `agent exited within startup window (code=${earlyExit.code})`,
+          exitCode: earlyExit.code,
+          signal: earlyExit.signal,
+        }, 500);
+      }
       if (record.scrollbackFile) {
         await svc.scrollbackStore.remove(record.scrollbackFile);
         delete (record as { scrollbackFile?: string }).scrollbackFile;

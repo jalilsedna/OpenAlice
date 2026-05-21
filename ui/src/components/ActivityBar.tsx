@@ -31,6 +31,13 @@ function activitySectionFor(page: Page): ActivitySection {
 interface ActivityBarProps {
   open: boolean
   onClose: () => void
+  /**
+   * Called after the user activates an item. Receives the activity the user
+   * landed on (or null if they collapsed the current one by re-clicking it).
+   * The parent uses this on mobile to drill into the secondary sidebar drawer
+   * instead of dismissing entirely. Desktop layouts can ignore it.
+   */
+  onItemActivated?: (section: ActivitySection | null) => void
 }
 
 // ==================== Nav item definitions ====================
@@ -146,7 +153,7 @@ const NAV_SECTIONS: NavSection[] = [
  * lifecycle stages and the section labels are how we'll later
  * communicate that. Mostly-icon view would hide the differentiation.
  */
-export function ActivityBar({ open, onClose }: ActivityBarProps) {
+export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps) {
   const selectedSidebar = useWorkspace((state) => state.selectedSidebar)
   const setSidebar = useWorkspace((state) => state.setSidebar)
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
@@ -237,12 +244,13 @@ export function ActivityBar({ open, onClose }: ActivityBarProps) {
                       const isActive = selectedSidebar === sec
                       const Icon = item.icon
                       const handleClick = () => {
-                        onClose()
+                        let landedOn: ActivitySection | null
                         if (selectedSidebar === sec) {
                           // Same section re-clicked: toggle sidebar off. Don't
                           // touch the focused tab — collapsing the sidebar
                           // shouldn't change what's in the editor.
                           setSidebar(null)
+                          landedOn = null
                         } else {
                           setSidebar(sec)
                           // Activities with a meaningful default landing (e.g.
@@ -250,7 +258,12 @@ export function ActivityBar({ open, onClose }: ActivityBarProps) {
                           // activities (Chat, Settings, Trading-as-Git, …) leave
                           // tab focus alone — user picks from the sidebar.
                           if (item.defaultTab) openOrFocus(item.defaultTab)
+                          landedOn = sec
                         }
+                        // Let parent decide the mobile transition (drill into
+                        // secondary drawer vs dismiss). Default: just close.
+                        if (onItemActivated) onItemActivated(landedOn)
+                        else onClose()
                       }
                       return (
                         <button

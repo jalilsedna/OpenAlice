@@ -69,8 +69,17 @@ export function createTradingProxyRoutes(opts: { utaBaseUrl: string }): Hono {
       clearTimeout(connectTimer)
     }
 
-    // Re-emit upstream response as-is — Hono returns Response unchanged.
-    return upstream
+    // Re-wrap with a fresh Headers object so downstream middleware (CORS,
+    // etc.) can still mutate them. `fetch()` returns a Response whose
+    // headers carry an immutable guard per the WHATWG spec — handing it
+    // back as-is makes any later `headers.set(...)` throw.
+    const headers = new Headers()
+    upstream.headers.forEach((value, name) => { headers.set(name, value) })
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers,
+    })
   })
 
   return app

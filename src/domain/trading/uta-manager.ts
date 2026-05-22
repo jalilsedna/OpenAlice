@@ -21,41 +21,11 @@ import type { ReconnectResult } from '../../core/types.js'
 import type { FxService } from './fx-service.js'
 import './contract-ext.js'
 
-// ==================== UTA summary ====================
-
-export interface UTASummary {
-  id: string
-  label: string
-  capabilities: AccountCapabilities
-  health: BrokerHealthInfo
-}
-
-// ==================== Aggregated equity ====================
-
-export interface AggregatedEquity {
-  totalEquity: string
-  totalCash: string
-  totalUnrealizedPnL: string
-  totalRealizedPnL: string
-  /** Present when one or more accounts used fallback FX rates. */
-  fxWarnings?: string[]
-  accounts: Array<{
-    id: string
-    label: string
-    baseCurrency: string
-    equity: string
-    cash: string
-    unrealizedPnL: string
-    health: BrokerHealth
-  }>
-}
-
-// ==================== Contract search result ====================
-
-export interface ContractSearchResult {
-  accountId: string
-  results: ContractDescription[]
-}
+// Manager-level shapes live in `@traderalice/uta-protocol` (the SDK
+// contract surface) — re-exported here for backwards compatibility with
+// callers that import via `@/domain/trading`.
+import type { UTASummary, AggregatedEquity, ContractSearchResult } from '@traderalice/uta-protocol'
+export type { UTASummary, AggregatedEquity, ContractSearchResult }
 
 // ==================== UTAManager ====================
 

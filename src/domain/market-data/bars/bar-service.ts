@@ -151,22 +151,28 @@ export function createBarService(deps: BarServiceDeps): BarService {
     opts: GetBarsOpts,
   ): Promise<BarsResult> {
     const start_date = startDateFor(opts)
+    // Upper bound: the provider applies end_date (OpenTypeBB models support it);
+    // we also post-filter defensively in case a provider ignores it.
+    const end_date = opts.end
+    const p = (extra?: Record<string, unknown>) => ({ symbol, start_date, provider, ...(end_date ? { end_date } : {}), ...extra })
     let raw: Array<Record<string, unknown>>
     switch (assetClass) {
       case 'equity':
-        raw = await deps.equityClient.getHistorical({ symbol, start_date, interval: opts.interval, provider })
+        raw = await deps.equityClient.getHistorical(p({ interval: opts.interval }))
         break
       case 'crypto':
-        raw = await deps.cryptoClient.getHistorical({ symbol, start_date, interval: opts.interval, provider })
+        raw = await deps.cryptoClient.getHistorical(p({ interval: opts.interval }))
         break
       case 'currency':
-        raw = await deps.currencyClient.getHistorical({ symbol, start_date, interval: opts.interval, provider })
+        raw = await deps.currencyClient.getHistorical(p({ interval: opts.interval }))
         break
       case 'commodity':
-        raw = await deps.commodityClient.getSpotPrices({ symbol, start_date, provider })
+        raw = await deps.commodityClient.getSpotPrices(p())
         break
     }
-    const filtered = finalize(raw.filter(isFullBar) as OhlcvBar[], opts.count)
+    let bars = raw.filter(isFullBar) as OhlcvBar[]
+    if (end_date) bars = bars.filter((b) => b.date.slice(0, 10) <= end_date)
+    const filtered = finalize(bars, opts.count)
     return {
       bars: filtered,
       meta: buildMeta(symbol, filtered, {

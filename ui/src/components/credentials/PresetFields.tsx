@@ -24,62 +24,48 @@ export function EndpointField({ value, endpoints, onChange, placeholder }: {
   onChange: (v: string) => void
   placeholder?: string
 }) {
-  // No enumeration → plain free text (claude-api / codex-api / gemini / custom).
-  if (endpoints.length === 0) {
-    return (
+  const hasRegions = endpoints.length > 0
+  const known = endpoints.some((e) => e.id === value)
+  // Start in custom mode if the stored value is a non-listed, non-empty URL —
+  // so editing a credential with a proxy/self-host endpoint keeps it.
+  const [custom, setCustom] = useState(hasRegions && !known && value.trim() !== '')
+  const showCustom = custom || (!known && value.trim() !== '')
+  // The URL box is editable only when there's no region list, or the user chose
+  // Custom. Otherwise it shows the resolved URL read-only (but selectable, so
+  // the user can see + copy exactly where requests go).
+  const editable = !hasRegions || showCustom
+
+  return (
+    <div className="space-y-2">
+      {hasRegions && (
+        <select
+          className={inputClass}
+          value={showCustom ? CUSTOM : value}
+          onChange={(e) => {
+            if (e.target.value === CUSTOM) {
+              setCustom(true) // keep current value so the box is pre-filled
+            } else {
+              setCustom(false)
+              onChange(e.target.value)
+            }
+          }}
+        >
+          {endpoints.map((e) => (
+            <option key={e.id} value={e.id}>{e.label}</option>
+          ))}
+          <option value={CUSTOM}>Custom…</option>
+        </select>
+      )}
       <input
-        className={inputClass}
+        className={`${inputClass} font-mono text-[12px]${editable ? '' : ' text-text-muted bg-bg-secondary/40 cursor-default'}`}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder ?? 'leave empty for the official endpoint'}
+        readOnly={!editable}
+        onChange={(e) => { if (editable) onChange(e.target.value) }}
+        placeholder={editable ? (placeholder ?? 'https://… (leave empty for the official endpoint)') : undefined}
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
       />
-    )
-  }
-
-  const known = endpoints.some((e) => e.id === value)
-  // Start in custom mode if the stored value is a non-listed, non-empty URL —
-  // so editing a credential with a proxy/self-host endpoint keeps it.
-  const [custom, setCustom] = useState(!known && value.trim() !== '')
-  const showCustom = custom || (!known && value.trim() !== '')
-
-  return (
-    <div className="space-y-2">
-      <select
-        className={inputClass}
-        value={showCustom ? CUSTOM : value}
-        onChange={(e) => {
-          if (e.target.value === CUSTOM) {
-            setCustom(true)
-            // keep the current value so the free-text box is pre-filled
-          } else {
-            setCustom(false)
-            onChange(e.target.value)
-          }
-        }}
-      >
-        {endpoints.map((e) => (
-          <option key={e.id} value={e.id}>{e.label}</option>
-        ))}
-        <option value={CUSTOM}>Custom…</option>
-      </select>
-      {showCustom ? (
-        <input
-          className={inputClass}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? 'https://…'}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-        />
-      ) : (
-        // Always show the concrete URL the region resolves to — the user must
-        // know where requests go, even though picking it from the list is fixed.
-        value && <p className="text-[11px] text-text-muted/80 font-mono break-all px-1">→ {value}</p>
-      )}
     </div>
   )
 }

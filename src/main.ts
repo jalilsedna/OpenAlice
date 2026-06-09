@@ -27,7 +27,8 @@ import { OpenBBCurrencyClient } from './domain/market-data/client/openbb-api/cur
 import { OpenBBCommodityClient } from './domain/market-data/client/openbb-api/commodity-client.js'
 import { OpenBBEconomyClient } from './domain/market-data/client/openbb-api/economy-client.js'
 import { createMarketSearchTools } from './tool/market.js'
-import { createAnalysisTools } from './tool/analysis.js'
+import { createQuantTools } from './tool/quant.js'
+import { createBarService } from './domain/market-data/bars/index.js'
 import { createSectorRotationTools } from './tool/sector-rotation.js'
 import { createEconomyTools } from './tool/economy.js'
 import { SessionStore } from './core/session.js'
@@ -171,6 +172,18 @@ async function main() {
 
   const marketSearch = { symbolIndex, cryptoClient, currencyClient, commodityCatalog }
 
+  // Federated bar layer — vendor (OpenTypeBB) + broker (UTA) OHLCV behind one
+  // barId-keyed interface. Vendor branch live now; UTA branch lands with Phase 1.
+  const barService = createBarService({
+    marketSearch,
+    equityClient,
+    cryptoClient,
+    currencyClient,
+    commodityClient,
+    utaManager,
+    vendorProviders: config.marketData.providers,
+  })
+
   // ==================== Tool Registration ====================
 
   toolCenter.register(createThinkingTools(), 'thinking')
@@ -190,7 +203,10 @@ async function main() {
   if (config.news.enabled) {
     toolCenter.register(createNewsArchiveTools(newsStore), 'news')
   }
-  toolCenter.register(createAnalysisTools(equityClient, cryptoClient, currencyClient, commodityClient), 'analysis')
+  // v1 calculateIndicator (createAnalysisTools) is retired from the tool surface
+  // — calculateQuant (v2, barId-keyed) supersedes it and the two descriptions
+  // confused the model / bloated context. The code remains for now.
+  toolCenter.register(createQuantTools({ barService }), 'quant')
   toolCenter.register(createSectorRotationTools(equityClient), 'sector-rotation')
   toolCenter.register(createEconomyTools(economyClient, commodityClient), 'economy')
 
@@ -292,6 +308,7 @@ async function main() {
     bbEngine: getSDKExecutor(),
     marketSearch,
     equityClient,
+    barService,
     utaManager,
     newsProvider: newsStore,
   }

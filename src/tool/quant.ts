@@ -14,8 +14,31 @@ import { runScript, type CalcDeps } from '@/domain/analysis/calc-v2/index'
 
 export function createQuantTools(deps: CalcDeps) {
   return {
+    searchBars: tool({
+      description: `Find K-line sources for a symbol — returns barIds to paste into calculateQuant's bars(...).
+
+Federates vendors (yfinance/fmp) AND connected brokers (alpaca-paper, binance-readonly, …).
+Each candidate carries:
+  - barId: use directly, e.g. bars("<barId>", "1d", count=250).
+    · broker barIds ("accountId|symbol") need NO asset= in bars().
+    · vendor barIds ("provider|symbol") need asset="equity|crypto|currency|commodity".
+  - source: "uta" (broker) | "vendor"
+  - barCapability: "realtime" | "delayed" | "iex" | "subscription" — prefer the freshest.
+The same asset appears from multiple sources (redundancy is expected) — pick by capability,
+and by whether it's a broker you actually trade (so the chart matches your fills).`,
+      inputSchema: z.object({
+        query: z.string().describe('Symbol or keyword, e.g. "AAPL", "BTC", "bitcoin"'),
+        limit: z.number().int().positive().optional().describe('Max candidates (default 20)'),
+      }).meta({ examples: [{ query: 'AAPL' }] }),
+      execute: async ({ query, limit }) => {
+        const candidates = await deps.barService.searchBarSources(query, limit != null ? { limit } : undefined)
+        return { candidates, count: candidates.length }
+      },
+    }),
+
     calculateQuant: tool({
       description: `Run a technical-analysis script over K-lines from explicit sources (barId-keyed).
+Get barIds from \`searchBars\` first (or \`searchContracts\` for broker-only).
 
 A script is one or more \`name = bars(...)\` bindings followed by a final result expression:
 

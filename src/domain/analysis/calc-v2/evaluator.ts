@@ -242,5 +242,12 @@ function buildFunctions(): Record<string, Fn> {
     obv: (f, a, l) => { arity(a, 2, 2, f, l); return n(Tech.OBV(col(a[0], f, 1, l), col(a[1], f, 2, l))) },
     mfi: (f, a, l) => { arity(a, 4, 5, f, l); const h = col(a[0], f, 1, l), lo = col(a[1], f, 2, l), c = col(a[2], f, 3, l), v = col(a[3], f, 4, l), p = a[4] ? num(a[4], f, 5, l) : 14; needBars(c, p + 1, f, l); return n(Tech.MFI(h, lo, c, v, p)) },
     vwap: (f, a, l) => { arity(a, 4, 4, f, l); return n(Tech.VWAP(col(a[0], f, 1, l), col(a[1], f, 2, l), col(a[2], f, 3, l), col(a[3], f, 4, l))) },
+    median: (f, a, l) => { arity(a, 1, 1, f, l); return n(Stat.MEDIAN(col(a[0], f, 1, l))) },
+    roc: (f, a, l) => { arity(a, 2, 2, f, l); const c = col(a[0], f, 1, l), p = num(a[1], f, 2, l); needBars(c, p + 1, f, l); return n(Stat.ROC(c, p)) },
+    zscore: (f, a, l) => { arity(a, 1, 2, f, l); const c = col(a[0], f, 1, l), p = a[1] ? num(a[1], f, 2, l) : undefined; if (p) needBars(c, p, f, l); return n(Stat.ZSCORE(c, p)) },
+    slope: (f, a, l) => { arity(a, 2, 2, f, l); const c = col(a[0], f, 1, l), p = num(a[1], f, 2, l); needBars(c, p, f, l); return n(Stat.SLOPE(c, p)) },
+    correlation: (f, a, l) => { arity(a, 2, 2, f, l); return n(Stat.CORRELATION(col(a[0], f, 1, l), col(a[1], f, 2, l))) },
+    highest: (f, a, l) => { arity(a, 2, 2, f, l); const c = col(a[0], f, 1, l), p = num(a[1], f, 2, l); needBars(c, p, f, l); return n(Stat.HIGHEST(c, p)) },
+    lowest: (f, a, l) => { arity(a, 2, 2, f, l); const c = col(a[0], f, 1, l), p = num(a[1], f, 2, l); needBars(c, p, f, l); return n(Stat.LOWEST(c, p)) },
   }
 }

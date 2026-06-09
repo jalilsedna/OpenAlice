@@ -3,13 +3,14 @@ name: openalice-cli
 description: >
   How to reach OpenAlice from your shell via the `alice*` CLIs. Two binaries:
   `alice` for MARKET DATA (news, symbol search, equity fundamentals, macro/economy
-  series, technical indicators) and `alice-workspace` for AGENT COLLABORATION
-  (push finished work to the user's inbox, track entities). Both print JSON and
-  are discoverable with `--help`. Use whenever you need a number/headline/
-  fundamental/indicator, or want to hand work back to the user, and this
-  workspace exposes the `alice*` commands instead of (or alongside) the OpenAlice
-  MCP tools: "look up AAPL", "what's Apple's revenue", "search news for the Fed",
-  "compute RSI", "push my findings to the inbox", "track this ticker". Discover
+  series) and `alice-workspace` for AGENT COLLABORATION (push finished work to the
+  user's inbox, track entities). Both print JSON and are discoverable with
+  `--help`. Use whenever you need a number/headline/fundamental, or want to hand
+  work back to the user, and this workspace exposes the `alice*` commands instead
+  of (or alongside) the OpenAlice MCP tools: "look up AAPL", "what's Apple's
+  revenue", "search news for the Fed", "push my findings to the inbox", "track
+  this ticker". (For technical/quantitative analysis on price — RSI, moving
+  averages, multi-timeframe — see the `openalice-quant` skill.) Discover
   everything live with `alice --help` / `alice-workspace --help` — do NOT guess flags.
 ---
 
@@ -64,26 +65,18 @@ alice news grep --pattern "interest rate" --lookback 2d
 alice news read --id <id-from-the-results>
 ```
 
-**Macro / indicators / metadata filters** (`--meta` is repeatable):
+**Macro / metadata filters** (`--meta` is repeatable):
 
 ```bash
 alice economy fred-series --symbol UNRATE --limit 12
-# Quant analysis is a two-step loop. (1) Find a K-line source — returns barIds
-# across vendors (yfinance/fmp) AND your connected brokers, each tagged with a
-# freshness badge (realtime/iex/delayed):
-alice analysis search-bars --query AAPL
-# (2) Compute over a chosen barId. pandas-style script: lowercase; bars() + s.close;
-# indicators return the latest value (no [-1]). Broker barIds ("acct|symbol") need
-# no asset=; vendor barIds ("yfinance|…") need asset=equity|crypto|currency|commodity.
-alice analysis quant --script $'s = bars("binance-readonly|BTC/USDT", "1d", count=250)\nrsi(s.close, 14)'
 alice news grep --pattern BTC --meta source=coindesk --meta category=crypto
 ```
 
-> **search-bars → quant** is the whole loop, and `search-bars` is the ONLY way to
-> get barIds here (the CLI exposes no trading commands by design). It federates
-> vendor + broker sources — use a broker's barId to compute on the exact K-lines
-> you trade, or mix sources in one script (`yfinance|AAPL` vs `alpaca-paper|AAPL`)
-> to compare.
+**Technical / quantitative analysis** lives in its own surface — `alice analysis
+search-bars` (find a K-line barId) then `alice analysis quant` (compute). It's a
+small scripting language with a full function catalog, multi-timeframe panels,
+and source selection. **See the `openalice-quant` skill** for the manual; don't
+hand-roll indicators here.
 
 ## Collaboration — `alice-workspace`
 

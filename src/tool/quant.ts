@@ -53,10 +53,13 @@ bars(barId, interval, count=, asOf=, start=, end=, asset=):
   - asset=: REQUIRED for vendor barIds — "equity" | "crypto" | "currency" | "commodity".
     (Broker barIds infer it.)
 Series columns: s.open / s.high / s.low / s.close / s.volume
-Functions: sma(series, n), ema(series, n), stdev(series), max/min/sum/average(series),
+Functions: sma(series, n), ema(series, n), stdev(series), max/min/sum/average/median(series),
   rsi(series, n=14), bbands(series, n, std), macd(series, fast, slow, signal),
   atr(high, low, close, n), rvol(volume, n=20), obv(close, volume),
-  mfi(high, low, close, volume, n=14), vwap(high, low, close, volume).
+  mfi(high, low, close, volume, n=14), vwap(high, low, close, volume),
+  roc(series, n) [% change over n], zscore(series, n?) [how extended vs trailing window],
+  slope(series, n) [linreg trend, signed/rankable], correlation(seriesA, seriesB) [−1..1],
+  highest(series, n), lowest(series, n).
 Indicators return the LATEST value directly (a scalar) — do NOT index them.
 Only raw columns are series: index them with s.close[-1] (latest), s.close[-n] (n-back).
 Arithmetic: + - * /.

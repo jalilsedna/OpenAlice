@@ -92,6 +92,27 @@ describe('calc-v2 evaluator', () => {
     expect(r.value).toHaveProperty('lower')
   })
 
+  // ---- added quant primitives ----
+
+  it('computes roc / median / slope / highest / lowest (exact on a ramp)', async () => {
+    const svc = mockBars([1, 2, 3, 4, 5])
+    expect((await run(`s = bars("x","1d",asset="equity")\nroc(s.close, 4)`, svc)).value).toBe(400) // (5-1)/1*100
+    expect((await run(`s = bars("x","1d",asset="equity")\nmedian(s.close)`, svc)).value).toBe(3)
+    expect((await run(`s = bars("x","1d",asset="equity")\nslope(s.close, 5)`, svc)).value).toBe(1) // perfect line
+    expect((await run(`s = bars("x","1d",asset="equity")\nhighest(s.close, 3)`, svc)).value).toBe(5)
+    expect((await run(`s = bars("x","1d",asset="equity")\nlowest(s.close, 3)`, svc)).value).toBe(3)
+  })
+
+  it('zscore of the latest value', async () => {
+    const r = await run(`s = bars("x","1d",asset="equity")\nzscore(s.close)`, mockBars([1, 2, 3, 4, 5]))
+    expect(r.value).toBeCloseTo(1.4142, 3) // (5-3)/sqrt(2)
+  })
+
+  it('correlation of two series (identical → 1)', async () => {
+    const r = await run(`a = bars("x","1d",asset="equity")\nb = bars("y","1d",asset="equity")\ncorrelation(a.close, b.close)`, mockBars([1, 2, 3, 4, 5]))
+    expect(r.value).toBeCloseTo(1, 6)
+  })
+
   // ---- panels: batch many computations in one call ----
 
   it('returns a labeled panel (dict) — the multi-timeframe case', async () => {

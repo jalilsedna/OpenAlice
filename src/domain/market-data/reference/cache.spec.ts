@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cachedBoard } from './cache.js'
+import type { ReferenceMeta } from './types.js'
 
 beforeEach(() => { vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
 
-const board = (n: number) => ({ n, meta: { provider: 'test', asOf: new Date().toISOString() } })
+const board = (n: number): { n: number; meta: ReferenceMeta } =>
+  ({ n, meta: { provider: 'test', asOf: new Date().toISOString() } })
 
 describe('reference cache', () => {
   it('serves from cache within TTL (cachedAt set), refetches after expiry', async () => {

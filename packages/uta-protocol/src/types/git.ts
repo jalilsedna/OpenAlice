@@ -283,7 +283,8 @@ export interface StageClosePositionParams {
 // ==================== Operation Helpers ====================
 
 /** Extract the symbol from any Operation variant. */
-export function getOperationSymbol(op: Operation): string {
+export function getOperationSymbol(op: Operation | undefined): string {
+  if (!op) return 'unknown'
   switch (op.action) {
     case 'placeOrder': return op.contract?.symbol || op.contract?.aliceId || 'unknown'
     case 'modifyOrder': return 'unknown' // modifyOrder doesn't carry contract

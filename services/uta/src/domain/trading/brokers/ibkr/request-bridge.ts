@@ -522,12 +522,19 @@ export class RequestBridge extends DefaultEWrapper {
     // Zero quantity = position fully closed — must REMOVE from cache, not
     // be ignored (a closed position used to linger until the next full
     // download).
+    // IBKR's averageCost is PER CONTRACT (multiplier-baked: an option bought
+    // at 1.03 reports averageCost 103) while marketPrice is per unit. Every
+    // downstream consumer that recomputes PnL as (mark − avg) × mult would
+    // produce inverted, ~100x-wrong numbers for derivatives (the community
+    // "option PnL direction is flipped" report). Normalize to per-unit here.
+    const multDec = new Decimal(contract.multiplier || '1')
+    const avgPerUnit = multDec.gt(1) ? new Decimal(averageCost).div(multDec).toString() : averageCost
     const row = position.isZero() ? null : buildPosition({
       contract,
       currency: contract.currency || 'USD',
       side: position.greaterThan(0) ? 'long' : 'short',
       quantity: position.abs(),
-      avgCost: averageCost,
+      avgCost: avgPerUnit,
       marketPrice,
       // TWS already bakes contract.multiplier into the values it reports
       // here — pass through as-is (don't re-derive). multiplier is surfaced

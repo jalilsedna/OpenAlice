@@ -503,7 +503,10 @@ export class IbkrBroker implements IBroker {
       const rate = ccy === baseCurrency ? new Decimal(1) : this.fxRate(download.values, ccy)
       if (rate === null) { positionUnrealizedPnL = null; positionMarketValue = null; break }
       positionUnrealizedPnL = positionUnrealizedPnL!.plus(new Decimal(pos.unrealizedPnL).mul(rate))
-      positionMarketValue = positionMarketValue!.plus(new Decimal(pos.marketValue).mul(rate))
+      // marketValue is always-positive by convention (side carried apart) —
+      // shorts must SUBTRACT from equity (see aggregateAccountFromPositions).
+      const sided = pos.side === 'short' ? new Decimal(pos.marketValue).neg() : new Decimal(pos.marketValue)
+      positionMarketValue = positionMarketValue!.plus(sided.mul(rate))
     }
 
     const brokerNetLiq = new Decimal(download.values.get('NetLiquidation') ?? '0')

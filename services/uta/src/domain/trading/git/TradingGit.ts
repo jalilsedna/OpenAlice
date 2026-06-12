@@ -6,7 +6,7 @@
 
 import { createHash } from 'crypto'
 import Decimal from 'decimal.js'
-import { Contract, Order, UNSET_DECIMAL } from '@traderalice/ibkr'
+import { Contract, Order, UNSET_DECIMAL, UNSET_DOUBLE } from '@traderalice/ibkr'
 import { OrderHelper } from '../OrderHelper.js'
 import type { ITradingGit, TradingGitConfig } from './interfaces.js'
 import type {
@@ -30,6 +30,10 @@ import type {
   SyncResult,
 } from './types.js'
 import { getOperationSymbol } from './types.js'
+
+/** secTypes whose price does NOT track the underlying 1:1 — excluded from
+ *  symbol-level price simulation (they share the underlying's symbol). */
+const DERIVATIVE_SECTYPES = new Set(['OPT', 'FOP', 'WAR', 'IOPT', 'BAG'])
 
 function generateCommitHash(content: object): CommitHash {
   const hash = createHash('sha256')
@@ -620,7 +624,10 @@ export class TradingGit implements ITradingGit {
     for (const commit of this.commits) {
       for (let j = 0; j < commit.results.length; j++) {
         const result = commit.results[j]
-        const op = commit.operations[j]
+        // Sync commits store ONE syncOrders op with N per-order results —
+        // operations[j] is undefined past index 0 (a multi-update sync
+        // commit in the journal turned this into a BOOT-LOOP crash once).
+        const op = commit.operations[j] ?? commit.operations[0]
         const symbol = getOperationSymbol(op)
         // Broker-native symbol for symbol-scoped order lookups (CCXT).
         // Persisted with the operation, so it survives process restarts
@@ -678,8 +685,10 @@ export class TradingGit implements ITradingGit {
       }
     }
 
-    // Parse price changes → target price map
-    const priceMap = new Map<string, Decimal>()
+    // Parse price changes → per-position target prices. Index-keyed: bare
+    // symbols collide between an underlying and its derivatives.
+    const priceByIndex = new Map<number, Decimal>()
+    const excludedDerivatives: string[] = []
 
     for (const { symbol, change } of priceChanges) {
       const parsed = this.parsePriceChange(change)
@@ -694,13 +703,24 @@ export class TradingGit implements ITradingGit {
       }
 
       if (symbol === 'all') {
-        for (const pos of positions) {
-          priceMap.set(pos.contract.symbol || 'unknown', this.applyPriceChange(new Decimal(pos.marketPrice), parsed.type, parsed.value))
+        for (let i = 0; i < positions.length; i++) {
+          // 'all' scales each position's OWN mark — valid for derivatives too.
+          priceByIndex.set(i, this.applyPriceChange(new Decimal(positions[i].marketPrice), parsed.type, parsed.value))
         }
       } else {
-        const pos = positions.find((p) => (p.contract.symbol || p.contract.aliceId) === symbol)
-        if (pos) {
-          priceMap.set(symbol, this.applyPriceChange(new Decimal(pos.marketPrice), parsed.type, parsed.value))
+        for (let i = 0; i < positions.length; i++) {
+          const pos = positions[i]
+          if ((pos.contract.symbol || pos.contract.aliceId) !== symbol) continue
+          // A symbol-level price change describes the UNDERLYING. Derivative
+          // rows share the symbol but do NOT move 1:1 with it (an option's
+          // own price is not the stock's price) — re-marking them with the
+          // stock price produced +23,000% "moves" and inverted PnL. Exclude
+          // loudly instead of pricing garbage.
+          if (DERIVATIVE_SECTYPES.has(pos.contract.secType)) {
+            excludedDerivatives.push(`${symbol} ${pos.contract.secType}${pos.contract.strike && !new Decimal(pos.contract.strike).equals(UNSET_DOUBLE) ? ' ' + pos.contract.strike : ''}`)
+            continue
+          }
+          priceByIndex.set(i, this.applyPriceChange(new Decimal(pos.marketPrice), parsed.type, parsed.value))
         }
       }
     }
@@ -718,19 +738,21 @@ export class TradingGit implements ITradingGit {
 
     // Simulated state
     let simulatedUnrealizedPnL = new Decimal(0)
-    const simulatedPositions = positions.map((pos) => {
+    const simulatedPositions = positions.map((pos, i) => {
       const sym = pos.contract.symbol || pos.contract.aliceId || 'unknown'
       const mktPrice = new Decimal(pos.marketPrice)
-      const simulatedPrice = priceMap.get(sym) ?? mktPrice
+      const simulatedPrice = priceByIndex.get(i) ?? mktPrice
       const priceChange = simulatedPrice.minus(mktPrice)
       const priceChangePct = mktPrice.gt(0) ? priceChange.div(mktPrice).mul(100) : new Decimal(0)
       const q = pos.quantity
       const avgCost = new Decimal(pos.avgCost)
+      // Multiplier-aware: 1 option contract at price 1.15 is $115 of value.
+      const mult = new Decimal(pos.multiplier || '1')
 
       const newPnL =
         pos.side === 'long'
-          ? simulatedPrice.minus(avgCost).mul(q)
-          : avgCost.minus(simulatedPrice).mul(q)
+          ? simulatedPrice.minus(avgCost).mul(q).mul(mult)
+          : avgCost.minus(simulatedPrice).mul(q).mul(mult)
 
       const pnlChange = newPnL.minus(pos.unrealizedPnL)
       simulatedUnrealizedPnL = simulatedUnrealizedPnL.plus(newPnL)
@@ -742,7 +764,7 @@ export class TradingGit implements ITradingGit {
         avgCost: pos.avgCost,
         simulatedPrice: simulatedPrice.toString(),
         unrealizedPnL: newPnL.toString(),
-        marketValue: simulatedPrice.mul(q).toString(),
+        marketValue: simulatedPrice.mul(q).mul(mult).toString(),
         pnlChange: pnlChange.toString(),
         priceChangePercent: `${priceChangePct.gte(0) ? '+' : ''}${priceChangePct.toFixed(2)}%`,
       }
@@ -758,10 +780,13 @@ export class TradingGit implements ITradingGit {
       { ...simulatedPositions[0], pnlChange: new Decimal(simulatedPositions[0].pnlChange) },
     )
 
+    const excludedNote = excludedDerivatives.length > 0
+      ? ` NOTE: derivative positions not simulated (their price does not track the underlying 1:1): ${excludedDerivatives.join(', ')}.`
+      : ''
     const worstCase =
-      worst.pnlChange.lt(0)
+      (worst.pnlChange.lt(0)
         ? `${worst.symbol} would lose $${worst.pnlChange.abs().toFixed(2)} (${worst.priceChangePercent})`
-        : 'All positions would profit or break even.'
+        : 'All positions would profit or break even.') + excludedNote
 
     return {
       success: true,

@@ -175,6 +175,20 @@ must round-trip: aliceId → quote (or a LOUD entitlement error) → place/track
 cancel. *Guards: the symbol-key-assumes-STK mis-resolution, directory rows
 dying as unaddressable search noise.*
 
+**S14 — Derivative position signs & units (the four-combo matrix).** Open
+all four option combos the venue allows (long/short × call/put; deep-ITM
+entries fill blind off intrinsic, shorts fill by selling under fair). For
+EACH leg verify on EVERY surface (portfolio tool, UI, simulator):
+`side` correct; `avgCost` and `marketPrice` in the SAME unit (venue
+averageCost is often multiplier-baked — IBKR reports 103 for an option
+bought at 1.03); `unrealizedPnL` sign matches reality for the side; account
+equity moves the right direction. Then run `sim price-change` on the
+UNDERLYING's symbol: derivative rows must be excluded loudly, never
+re-marked with the stock's price (symbol collision produced +23,000%
+"moves" and sign-inverted PnL — the community "option direction is
+flipped" report). *Guards: unit-mismatched cost basis, symbol-collision
+re-marking, sign inversion on recompute surfaces.*
+
 ## Scoreboard so far
 
 Rounds 1–5 (2026-06-12, okx + bybit + alpaca demo): ~20 bugs found and

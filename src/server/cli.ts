@@ -167,7 +167,12 @@ export function registerCliRoutes(app: Hono, deps: CliGatewayDeps): void {
     try {
       validated = await schema.parseAsync(rawArgs)
     } catch (err) {
-      return c.json({ error: 'Validation failed', details: String(err) }, 400)
+      // Field-level issues, not String(ZodError) — an agent reading
+      // "Validation failed" alone is stranded guessing flag names/shapes.
+      const details = err instanceof z.ZodError
+        ? err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('\n')
+        : String(err)
+      return c.json({ error: 'Validation failed', details }, 400)
     }
 
     const result = await wrapToolExecute(tool)(validated)

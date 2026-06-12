@@ -130,6 +130,24 @@ async function noAccountsError(manager: UTAManagerSDK, source?: string): Promise
   }
 }
 
+
+/** Stage + (optionally) commit in one call. The stage→commit split is pure
+ *  ceremony when one decision = one operation — which is the dominant agent
+ *  flow. The approval wall (push) is untouched. */
+async function stageAndMaybeCommit(
+  uta: { stage: () => Promise<unknown> | unknown; commit: (msg: string) => Promise<unknown> | unknown },
+  commitMessage?: string,
+): Promise<Record<string, unknown>> {
+  const staged = compactStageResult(await uta.stage())
+  if (!commitMessage) return staged
+  const committed = await uta.commit(commitMessage) as Record<string, unknown>
+  return {
+    ...staged,
+    committed: { hash: committed['hash'], message: committed['message'] },
+    nextStep: 'Awaiting user approval — they approve in the Web UI (push executes there).',
+  }
+}
+
 export function createTradingTools(manager: UTAManagerSDK): Record<string, Tool> {
   return {
     listUTAs: tool({
@@ -457,7 +475,7 @@ Required params by orderType:
   MOC: totalQuantity
 Optional: attach takeProfit and/or stopLoss for automatic exit orders.`,
       inputSchema: z.object({
-        source: z.string().describe(sourceDesc(true)),
+        source: z.string().optional().describe(sourceDesc(false, 'Defaults to the account inside aliceId.')),
         aliceId: z.string().describe('Contract ID (format: accountId|nativeKey, from searchContracts)'),
         symbol: z.string().optional().describe('Human-readable symbol (optional, for display only)'),
         action: z.enum(['BUY', 'SELL']).describe('Order direction'),
@@ -480,8 +498,12 @@ Optional: attach takeProfit and/or stopLoss for automatic exit orders.`,
           price: z.string().describe('Stop loss trigger price'),
           limitPrice: z.string().optional().describe('Limit price for stop-limit SL (omit for stop-market)'),
         }).optional().describe('Stop loss order (single-level, full quantity)'),
-      }).meta({ examples: [{ source: 'alpaca-paper', aliceId: 'alpaca-paper|AAPL', action: 'BUY', orderType: 'MKT', totalQuantity: '1' }] }),
-      execute: async ({ source, ...params }) => compactStageResult(await (await manager.resolveOne(source)).stagePlaceOrder(params)),
+        commitMessage: z.string().optional().describe('Stage AND commit in one step with this message (your trading thesis). Push/approval still required.'),
+      }).meta({ examples: [{ aliceId: 'alpaca-paper|AAPL', action: 'BUY', orderType: 'MKT', totalQuantity: '1', commitMessage: 'Entry: momentum breakout' }] }),
+      execute: async ({ source, commitMessage, ...params }) => {
+        const uta = await manager.resolveOne(source ?? parseAliceId(params.aliceId)?.utaId ?? '')
+        return stageAndMaybeCommit({ stage: () => uta.stagePlaceOrder(params), commit: (m) => uta.commit(m) }, commitMessage)
+      },
     }),
 
     modifyOrder: tool({
@@ -497,19 +519,27 @@ Optional: attach takeProfit and/or stopLoss for automatic exit orders.`,
         orderType: z.enum(['MKT', 'LMT', 'STP', 'STP LMT', 'TRAIL', 'TRAIL LIMIT', 'MOC']).optional().describe('New order type'),
         tif: z.enum(['DAY', 'GTC', 'IOC', 'FOK', 'OPG', 'GTD']).optional().describe('New time in force'),
         goodTillDate: z.string().optional().describe('New expiration date'),
+        commitMessage: z.string().optional().describe('Stage AND commit in one step with this message. Push/approval still required.'),
       }).meta({ examples: [{ source: 'alpaca-paper', orderId: '1', lmtPrice: '150' }] }),
-      execute: async ({ source, ...params }) => compactStageResult(await (await manager.resolveOne(source)).stageModifyOrder(params)),
+      execute: async ({ source, commitMessage, ...params }) => {
+        const uta = await manager.resolveOne(source)
+        return stageAndMaybeCommit({ stage: () => uta.stageModifyOrder(params), commit: (m) => uta.commit(m) }, commitMessage)
+      },
     }),
 
     closePosition: tool({
       description: 'Stage a position close.\nNOTE: This stages the operation. Call tradingCommit + tradingPush to execute.',
       inputSchema: z.object({
-        source: z.string().describe(sourceDesc(true)),
+        source: z.string().optional().describe(sourceDesc(false, 'Defaults to the account inside aliceId.')),
         aliceId: z.string().describe('Contract ID (format: accountId|nativeKey, from searchContracts)'),
         symbol: z.string().optional().describe('Human-readable symbol. Optional.'),
         qty: positiveNumeric.optional().describe('Number of shares to sell. Decimal string. Default: sell all.'),
-      }).meta({ examples: [{ source: 'alpaca-paper', aliceId: 'alpaca-paper|AAPL' }] }),
-      execute: async ({ source, ...params }) => compactStageResult(await (await manager.resolveOne(source)).stageClosePosition(params)),
+        commitMessage: z.string().optional().describe('Stage AND commit in one step with this message. Push/approval still required.'),
+      }).meta({ examples: [{ aliceId: 'alpaca-paper|AAPL', commitMessage: 'Exit: thesis invalidated' }] }),
+      execute: async ({ source, commitMessage, ...params }) => {
+        const uta = await manager.resolveOne(source ?? parseAliceId(params.aliceId)?.utaId ?? '')
+        return stageAndMaybeCommit({ stage: () => uta.stageClosePosition(params), commit: (m) => uta.commit(m) }, commitMessage)
+      },
     }),
 
     cancelOrder: tool({
@@ -517,8 +547,12 @@ Optional: attach takeProfit and/or stopLoss for automatic exit orders.`,
       inputSchema: z.object({
         source: z.string().describe(sourceDesc(true)),
         orderId: z.string().describe('Order ID to cancel'),
-      }).meta({ examples: [{ source: 'alpaca-paper', orderId: '1' }] }),
-      execute: async ({ source, orderId }) => compactStageResult(await (await manager.resolveOne(source)).stageCancelOrder({ orderId })),
+        commitMessage: z.string().optional().describe('Stage AND commit in one step with this message. Push/approval still required.'),
+      }).meta({ examples: [{ source: 'alpaca-paper', orderId: '1', commitMessage: 'Cancel: stale level' }] }),
+      execute: async ({ source, orderId, commitMessage }) => {
+        const uta = await manager.resolveOne(source)
+        return stageAndMaybeCommit({ stage: () => uta.stageCancelOrder({ orderId }), commit: (m) => uta.commit(m) }, commitMessage)
+      },
     }),
 
     tradingCommit: tool({

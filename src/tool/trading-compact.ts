@@ -167,10 +167,13 @@ export function compactResult(r: unknown): AnyRec {
 export function compactStatus(status: unknown): AnyRec {
   if (!status || typeof status !== 'object') return {}
   const k = status as AnyRec
+  // "pending" is overloaded in trading (pending ORDERS = working on the
+  // exchange) — at the agent boundary the committed-not-pushed state is
+  // named what it is: awaiting approval.
+  const msg = k['pendingMessage']
   return {
     staged: Array.isArray(k['staged']) ? k['staged'].map(compactOperation) : [],
-    pendingMessage: k['pendingMessage'] ?? null,
-    pendingHash: k['pendingHash'] ?? null,
+    awaitingApproval: msg ? { message: msg, hash: k['pendingHash'] ?? null } : null,
     head: k['head'] ?? null,
     commitCount: k['commitCount'],
   }

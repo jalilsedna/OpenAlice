@@ -91,12 +91,17 @@ describe('compactOperation / compactStatus / compactResult', () => {
     expect(r).toEqual({ action: 'placeOrder', success: false, status: 'rejected', error: 'price band', rejectReason: 'okx 51138' })
   })
 
-  it('compactStatus compacts staged ops and passes scalars through', () => {
-    const s = compactStatus({
+  it('compactStatus compacts staged ops and renames pending→awaitingApproval', () => {
+    const idle = compactStatus({
       staged: [{ action: 'cancelOrder', orderId: 'o1' }],
       pendingMessage: null, pendingHash: null, head: 'abc', commitCount: 5,
     })
-    expect(s).toEqual({ staged: [{ action: 'cancelOrder', orderId: 'o1' }], pendingMessage: null, pendingHash: null, head: 'abc', commitCount: 5 })
+    expect(idle).toEqual({ staged: [{ action: 'cancelOrder', orderId: 'o1' }], awaitingApproval: null, head: 'abc', commitCount: 5 })
+
+    const committed = compactStatus({
+      staged: [], pendingMessage: 'long ETH', pendingHash: 'h1', head: 'abc', commitCount: 5,
+    })
+    expect(committed.awaitingApproval).toEqual({ message: 'long ETH', hash: 'h1' })
   })
 })
 

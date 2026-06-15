@@ -55,12 +55,16 @@ async function main(): Promise<void> {
   // ==================== Account init (with ephemeral purge) ====================
 
   const survivors = await purgeEphemeralUTAs(await readUTAsConfig())
-  // Built-in keyless read-only data UTAs (binance/okx/bybit) — code-defined, not
+  // Built-in keyless read-only data UTAs (okx) — code-defined, not
   // persisted to accounts.json, so they can't be edited/clobbered. They serve
   // public crypto K-lines out-of-box (no API key) and are redundant sources for
   // the federated bar layer. A user's own exchange UTA uses a different id.
+  // binance/bybit are intentionally excluded: their public endpoints geo-block
+  // (HTTP 403/451) from some hosts, which only produced error spam + endless
+  // auto-recovery loops. okx is the keyless default; users who can reach
+  // binance/bybit add their own UTA (any id but `binance-readonly`/`bybit-readonly`).
   const userIds = new Set(survivors.map((u) => u.id))
-  const dataUTAs: UTAConfig[] = ['binance', 'okx', 'bybit']
+  const dataUTAs: UTAConfig[] = ['okx']
     .filter((ex) => !userIds.has(`${ex}-readonly`))
     .map((ex) => ({
       id: `${ex}-readonly`,

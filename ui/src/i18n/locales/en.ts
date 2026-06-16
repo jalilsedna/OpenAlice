@@ -137,6 +137,10 @@ export const en = {
     ex2: 'Build a thesis on NVDA',
     ex3: 'Scan the EV supply chain',
   },
+  theme: {
+    mode: { auto: 'Auto', light: 'Light', dark: 'Dark' },
+    switchTo: 'Switch to {{mode}}',
+  },
   dev: {
     snapshots: 'Snapshots',
   },

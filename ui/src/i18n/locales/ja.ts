@@ -126,6 +126,10 @@ export const ja: Resources = {
     ex2: 'NVDA の強気シナリオを作って',
     ex3: 'EV サプライチェーンを整理して',
   },
+  theme: {
+    mode: { auto: '自動', light: 'ライト', dark: 'ダーク' },
+    switchTo: '{{mode}}に切り替え',
+  },
   dev: {
     snapshots: 'スナップショット',
   },

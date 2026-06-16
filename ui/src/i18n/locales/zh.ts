@@ -126,6 +126,10 @@ export const zh: Resources = {
     ex2: '给我做一个英伟达的多头逻辑',
     ex3: '梳理一下电动车产业链',
   },
+  theme: {
+    mode: { auto: '自动', light: '浅色', dark: '深色' },
+    switchTo: '切换到{{mode}}',
+  },
   dev: {
     snapshots: '快照',
   },

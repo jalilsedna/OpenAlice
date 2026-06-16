@@ -1,0 +1,33 @@
+# Files Claude Code's search/read tools should skip. Goal: keep Glob/Grep/Read
+# from pulling generated, vendored, or large binary noise into context — which
+# is the quiet token sink (e.g. a broad grep returning hundreds of generated
+# protobuf files). This does NOT change the build or git; it only narrows what
+# the agent reads by default.
+
+# --- Generated / vendored code that IS tracked in git (gitignore misses these) ---
+# 203 generated protobuf message classes — never hand-edited, pure noise in search.
+packages/ibkr/src/protobuf/
+# Vendored IBKR reference source/samples (Java/C++), kept for reference only.
+packages/ibkr/ref/
+
+# --- Lockfiles & maps (huge, never need to be read) ---
+pnpm-lock.yaml
+*.map
+*.tsbuildinfo
+
+# --- Build outputs & caches (also gitignored; listed so non-git-aware tools skip too) ---
+node_modules/
+dist/
+.turbo/
+coverage/
+.vercel/
+
+# --- Runtime state & logs (can contain large dumps; data/ may hold sensitive state) ---
+data/
+logs/
+*.log
+
+# --- Secrets / env (defense in depth — never surface these in search) ---
+.env
+.env.*
+sealing.key

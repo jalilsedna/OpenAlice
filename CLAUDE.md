@@ -637,3 +637,8 @@ chunk, base `master`) or as a batch — that's a director decision, not a
 default. Ask the user before opening the PR.
 
 
+
+## Memory & Context
+See @memory/MEMORY.md for session notes and learned patterns.
+See @memory/positions.md for current tracked positions and watchlist.
+See @memory/api-patterns.md for data source and API quirks.

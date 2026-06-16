@@ -134,6 +134,10 @@ export const zhHant: Resources = {
     ex2: '幫我做一個輝達的多頭邏輯',
     ex3: '梳理一下電動車產業鏈',
   },
+  theme: {
+    mode: { auto: '自動', light: '淺色', dark: '深色' },
+    switchTo: '切換到{{mode}}',
+  },
   dev: {
     snapshots: '快照',
   },

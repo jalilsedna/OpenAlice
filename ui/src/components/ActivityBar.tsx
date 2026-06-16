@@ -8,6 +8,7 @@ import { useUnreadInboxCount } from '../live/inbox-read'
 import { usePendingPushCount } from '../live/trading-push'
 import { useActivityBarCollapse } from '../live/activity-bar-collapse'
 import { useTranslation } from 'react-i18next'
+import { ThemeToggle } from './ThemeToggle'
 
 /**
  * Map ActivityBar page enum (visual layout grouping) to the ActivitySection
@@ -197,7 +198,7 @@ export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps
           <img
             src="/alice.ico"
             alt="Alice"
-            className="w-7 h-7 rounded-full ring-1 ring-white/10 shadow-[0_0_14px_rgba(35,185,154,0.12)]"
+            className="w-7 h-7 rounded-full ring-1 ring-border shadow-[0_0_14px_var(--color-accent-dim)]"
             draggable={false}
           />
           <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text">OpenAlice</h1>
@@ -274,8 +275,8 @@ export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps
                           title={t(item.labelKey)}
                           className={`relative flex items-center gap-3 px-3 py-1.5 rounded-md text-[13px] transition-colors text-left ${
                             isActive
-                              ? 'bg-bg-tertiary text-text shadow-[inset_0_0_0_1px_rgba(255,255,255,0.045)]'
-                              : 'text-text-muted hover:text-text hover:bg-white/[0.035]'
+                              ? 'bg-bg-tertiary text-text shadow-[inset_0_0_0_1px_var(--color-overlay)]'
+                              : 'text-text-muted hover:text-text hover:bg-overlay'
                           }`}
                         >
                           {/* Active indicator — left vertical bar */}
@@ -315,6 +316,10 @@ export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps
           })}
         </nav>
 
+        {/* Footer — global toggles pinned to the bottom of the rail. */}
+        <div className="shrink-0 border-t border-border px-3 py-2">
+          <ThemeToggle />
+        </div>
       </aside>
     </>
   )

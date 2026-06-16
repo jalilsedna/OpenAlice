@@ -153,7 +153,7 @@ function TabButton({ title, active, onSelect, onClose, onContextMenu }: TabButto
       className={`group flex items-center gap-2 pl-3 pr-2 h-full text-[13px] cursor-pointer border-r border-border/80 transition-colors ${
         active
           ? 'bg-bg-tertiary text-text'
-          : 'text-text-muted hover:text-text hover:bg-white/[0.035]'
+          : 'text-text-muted hover:text-text hover:bg-overlay'
       }`}
     >
       <span className="truncate max-w-[200px]">{title}</span>
@@ -163,7 +163,7 @@ function TabButton({ title, active, onSelect, onClose, onContextMenu }: TabButto
           e.stopPropagation()
           onClose()
         }}
-        className="w-4 h-4 rounded flex items-center justify-center text-text-muted/60 hover:text-text hover:bg-white/[0.06]"
+        className="w-4 h-4 rounded flex items-center justify-center text-text-muted/60 hover:text-text hover:bg-overlay-strong"
         aria-label={`Close ${title}`}
       >
         <X size={11} strokeWidth={2.5} />

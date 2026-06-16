@@ -47,53 +47,58 @@
   --app-bg-wash: radial-gradient(circle at 50% 24%, rgba(47, 98, 176, 0.045), transparent 38rem);
 }
 
-/* ---- Midnight — dark (TradingView-ward terminal) ----
+/* ---- Midnight — dark (neutral charcoal-black) ----
+   Reverted to the #353 neutral-black palette: a navy-tinted dark read as
+   "too blue" once the full shell (rail + sidebar + tabs) was on screen — a
+   large neutral surface is calmer. Alice-blue survives ONLY as small brand
+   highlights (accent + the user's own bubble), so the large-area blue tint
+   is gone while the brand stays consistent with Daybreak.
    Forced via data-theme="dark", AND the resolution for data-theme="auto"
    when the OS is in dark mode (media block below). KEEP THE TWO IN SYNC. */
 :root[data-theme="dark"] {
-  --color-bg: #131722;
-  --color-bg-secondary: #1c2331;
-  --color-bg-tertiary: #2a3142;
-  --color-border: #2a2e39;
-  --color-text: #d1d4dc;
-  --color-text-muted: #787b86;
+  --color-bg: #0b0c0e;
+  --color-bg-secondary: #0e0f12;
+  --color-bg-tertiary: #1a1b21;
+  --color-border: #24262c;
+  --color-text: #dfe1e6;
+  --color-text-muted: #8f929b;
   --color-accent: #3b82f6;
   --color-accent-dim: rgba(59, 130, 246, 0.16);
   --color-user-bubble: #2f62b0;
-  --color-assistant-bubble: #1c2331;
-  --color-notification-bg: #241d0e;
-  --color-notification-border: #d6a23a;
-  --color-green: #26a69a;
-  --color-red: #ef5350;
-  --color-purple: #8b7bff;
-  --color-purple-dim: rgba(139, 123, 255, 0.18);
+  --color-assistant-bubble: #141519;
+  --color-notification-bg: #1d1610;
+  --color-notification-border: #8a5b2f;
+  --color-green: #23b99a;
+  --color-red: #e5484d;
+  --color-purple: #8f72ff;
+  --color-purple-dim: rgba(143, 114, 255, 0.16);
   --color-overlay: rgba(255, 255, 255, 0.04);
   --color-overlay-strong: rgba(255, 255, 255, 0.07);
   color-scheme: dark;
-  --app-bg-wash: radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.05), transparent 42rem);
+  --app-bg-wash: radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.02), transparent 34rem);
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="auto"] {
-    --color-bg: #131722;
-    --color-bg-secondary: #1c2331;
-    --color-bg-tertiary: #2a3142;
-    --color-border: #2a2e39;
-    --color-text: #d1d4dc;
-    --color-text-muted: #787b86;
+    --color-bg: #0b0c0e;
+    --color-bg-secondary: #0e0f12;
+    --color-bg-tertiary: #1a1b21;
+    --color-border: #24262c;
+    --color-text: #dfe1e6;
+    --color-text-muted: #8f929b;
     --color-accent: #3b82f6;
     --color-accent-dim: rgba(59, 130, 246, 0.16);
     --color-user-bubble: #2f62b0;
-    --color-assistant-bubble: #1c2331;
-    --color-notification-bg: #241d0e;
-    --color-notification-border: #d6a23a;
-    --color-green: #26a69a;
-    --color-red: #ef5350;
-    --color-purple: #8b7bff;
-    --color-purple-dim: rgba(139, 123, 255, 0.18);
+    --color-assistant-bubble: #141519;
+    --color-notification-bg: #1d1610;
+    --color-notification-border: #8a5b2f;
+    --color-green: #23b99a;
+    --color-red: #e5484d;
+    --color-purple: #8f72ff;
+    --color-purple-dim: rgba(143, 114, 255, 0.16);
     --color-overlay: rgba(255, 255, 255, 0.04);
     --color-overlay-strong: rgba(255, 255, 255, 0.07);
     color-scheme: dark;
-    --app-bg-wash: radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.05), transparent 42rem);
+    --app-bg-wash: radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.02), transparent 34rem);
   }
 }
 

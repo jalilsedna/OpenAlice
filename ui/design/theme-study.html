@@ -41,31 +41,31 @@
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg:        #131722;   /* trading-terminal canvas (TradingView-ward) */
-  --bg-2:      #1c2331;   /* lifted panel — the secondary-sidebar layer */
-  --bg-3:      #2a3142;   /* active / hover well */
-  --border:    #2a2e39;   /* cool charcoal hairline */
-  --border-soft:#222632;
-  --text:      #d1d4dc;
-  --muted:     #787b86;
-  --accent:    #3b82f6;   /* alice-blue brightened for the terminal */
-  --accent-2:  #d6a23a;   /* gold (hair) */
+  --bg:        #0b0c0e;   /* neutral charcoal-black canvas (#353 palette) */
+  --bg-2:      #0e0f12;   /* chrome panels — rail / sidebar / tabs */
+  --bg-3:      #1a1b21;   /* active / hover well */
+  --border:    #24262c;   /* neutral hairline */
+  --border-soft:#1a1b21;
+  --text:      #dfe1e6;
+  --muted:     #8f929b;
+  --accent:    #3b82f6;   /* alice-blue — small brand highlights only */
+  --accent-2:  #c9a23a;   /* gold (hair) */
   --accent-dim:rgba(59,130,246,0.16);
-  --green:     #26a69a;   /* up / positive — terminal teal */
-  --red:       #ef5350;   /* down / negative */
-  --purple:    #8b7bff;
+  --green:     #23b99a;   /* success / up */
+  --red:       #e5484d;   /* danger / down */
+  --purple:    #8f72ff;
   --paper: none;
-  --vignette: radial-gradient(circle at 50% 20%, rgba(59,130,246,0.05), transparent 42rem);
+  --vignette: radial-gradient(circle at 50% 24%, rgba(255,255,255,0.03), transparent 38rem);
   --shadow: 0 1px 2px rgba(0,0,0,0.45), 0 16px 44px rgba(0,0,0,0.5);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="auto"] {
-    --bg:#131722; --bg-2:#1c2331; --bg-3:#2a3142; --border:#2a2e39; --border-soft:#222632;
-    --text:#d1d4dc; --muted:#787b86; --accent:#3b82f6; --accent-2:#d6a23a;
-    --accent-dim:rgba(59,130,246,0.16); --green:#26a69a; --red:#ef5350; --purple:#8b7bff;
+    --bg:#0b0c0e; --bg-2:#0e0f12; --bg-3:#1a1b21; --border:#24262c; --border-soft:#1a1b21;
+    --text:#dfe1e6; --muted:#8f929b; --accent:#3b82f6; --accent-2:#c9a23a;
+    --accent-dim:rgba(59,130,246,0.16); --green:#23b99a; --red:#e5484d; --purple:#8f72ff;
     --paper:none;
-    --vignette: radial-gradient(circle at 50% 20%, rgba(59,130,246,0.05), transparent 42rem);
+    --vignette: radial-gradient(circle at 50% 24%, rgba(255,255,255,0.03), transparent 38rem);
     --shadow: 0 1px 2px rgba(0,0,0,0.45), 0 16px 44px rgba(0,0,0,0.5);
     color-scheme: dark;
   }
@@ -134,8 +134,8 @@ body::before {
 .card { border-radius: 16px; padding: 26px 24px 22px; position: relative; overflow: hidden;
   border: 1px solid; box-shadow: var(--shadow); }
 .card.day  { background: #f7f4ec; border-color: #ddd5c2; color: #1c2a41; }
-.card.night{ background: #131722; border-color: #2a2e39; color: #d1d4dc;
-  background-image: radial-gradient(circle at 50% 0%, rgba(59,130,246,0.08), transparent 22rem); }
+.card.night{ background: #0b0c0e; border-color: #24262c; color: #dfe1e6;
+  background-image: radial-gradient(circle at 50% 0%, rgba(59,130,246,0.06), transparent 22rem); }
 .card .label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; opacity: .7; }
 .card .cardname { font-family:"Cormorant Garamond",serif; font-weight:600; font-size: 30px; margin-top: 2px; }
 .card .cardname em { font-style: italic; }
@@ -155,7 +155,7 @@ body::before {
 .shex { font-family:"JetBrains Mono",monospace; font-size: 12px; opacity: .8; }
 .rule { height: 1px; margin: 14px 0 4px; }
 .card.day .rule { background: #e3dcc9; }
-.card.night .rule { background: #222632; }
+.card.night .rule { background: #1a1b21; }
 
 /* ============ Live mini-shell preview (adopts active theme) ============ */
 .previewframe { border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
@@ -287,7 +287,7 @@ footer .dot { color: var(--accent-2); font-style: normal; }
     <div class="sechead">
       <span class="num">01</span>
       <h2 class="sectitle serif">Two Palettes, One Identity</h2>
-      <p class="secnote">Alice-blue — the dress — is the brand accent in <em>both</em> modes. Day borrows the reference card's cream &amp; ink; night goes trading-terminal (TradingView-ward) — layered charcoal panels, the same blue brightened, teal up / coral down.</p>
+      <p class="secnote">Alice-blue — the dress — is the brand accent in <em>both</em> modes. Day borrows the reference card's cream &amp; ink; night stays a calm neutral charcoal-black (the #353 palette) so the full shell doesn't read as blue — alice-blue survives only as small highlights.</p>
     </div>
 
     <div class="cards">
@@ -303,7 +303,7 @@ footer .dot { color: var(--accent-2); font-style: normal; }
       <div class="card night">
         <div class="label">Dark</div>
         <div class="cardname">Mid<em>night</em></div>
-        <div class="ribbon">Trading-terminal charcoal · layered panels · brightened alice-blue · teal up / coral down</div>
+        <div class="ribbon">Neutral charcoal-black (#353) · calm shell · alice-blue only as small brand highlights</div>
         <div data-swatches="night"></div>
       </div>
     </div>
@@ -423,25 +423,25 @@ const DAY = {
   'purple-dim':'rgba(107,91,194,0.14)'
 };
 const NIGHT = {
-  bg:'#131722', 'bg-secondary':'#1c2331', 'bg-tertiary':'#2a3142', border:'#2a2e39',
-  text:'#d1d4dc', 'text-muted':'#787b86', accent:'#3b82f6', 'accent-dim':'rgba(59,130,246,0.16)',
-  'user-bubble':'#2f62b0', 'assistant-bubble':'#1c2331', 'notification-bg':'#241d0e',
-  'notification-border':'#d6a23a', green:'#26a69a', red:'#ef5350', purple:'#8b7bff',
-  'purple-dim':'rgba(139,123,255,0.18)'
+  bg:'#0b0c0e', 'bg-secondary':'#0e0f12', 'bg-tertiary':'#1a1b21', border:'#24262c',
+  text:'#dfe1e6', 'text-muted':'#8f929b', accent:'#3b82f6', 'accent-dim':'rgba(59,130,246,0.16)',
+  'user-bubble':'#2f62b0', 'assistant-bubble':'#141519', 'notification-bg':'#1d1610',
+  'notification-border':'#8a5b2f', green:'#23b99a', red:'#e5484d', purple:'#8f72ff',
+  'purple-dim':'rgba(143,114,255,0.16)'
 };
 /* swatch rows shown on the two specimen cards (curated subset + source notes) */
 const SPEC = [
-  ['bg','Background','Cream paper — her reference card','Terminal canvas — TradingView-ward'],
-  ['bg-secondary','Chrome panels','Warmer paper for the rails','Lifted panel — the sidebar layer'],
+  ['bg','Background','Cream paper — her reference card','Neutral charcoal-black (#353 palette)'],
+  ['bg-secondary','Chrome panels','Warmer paper for the rails','Rail / sidebar / tabs — calm neutral'],
   ['bg-tertiary','Hover / active well','Toned paper','Active well'],
-  ['border','Borders','Soft tan rule','Cool charcoal hairline'],
-  ['text','Ink','Engraved navy — the card titling','Terminal off-white'],
-  ['text-muted','Muted','Desaturated navy','Cool slate'],
-  ['accent','Accent · alice-blue','The dress','The dress, brightened for the terminal'],
-  ['notification-border','Gold','Her golden-blonde hair','Her hair, glowing'],
-  ['green','Up / positive','Botanical teal-green','Terminal teal — the up tick'],
-  ['red','Down / negative','Warm brick','The down tick'],
-  ['purple','Purple','Muted iris','Twilight violet'],
+  ['border','Borders','Soft tan rule','Neutral hairline'],
+  ['text','Ink','Engraved navy — the card titling','Soft off-white'],
+  ['text-muted','Muted','Desaturated navy','Cool grey'],
+  ['accent','Accent · alice-blue','The dress','The dress — small brand highlights only'],
+  ['notification-border','Gold','Her golden-blonde hair','Muted gold'],
+  ['green','Success','Botanical teal-green','Teal-green'],
+  ['red','Danger','Warm brick','Clean red'],
+  ['purple','Purple','Muted iris','Iris violet'],
 ];
 
 /* render specimen swatches */

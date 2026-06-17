@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import Decimal from 'decimal.js'
-import { Contract } from '@traderalice/ibkr'
+import { Contract, Order, OrderState } from '@traderalice/ibkr'
 import { RequestBridge } from './request-bridge.js'
 
 function stk(conId: number, symbol: string): Contract {
@@ -10,6 +10,23 @@ function stk(conId: number, symbol: string): Contract {
   c.secType = 'STK'
   c.currency = 'USD'
   return c
+}
+
+function cashFx(symbol: string, currency: string): Contract {
+  const c = new Contract()
+  c.symbol = symbol
+  c.secType = 'CASH'
+  c.currency = currency
+  c.localSymbol = `${symbol}.${currency}`
+  return c
+}
+
+function inactive(rejectReason = '', warningText = ''): OrderState {
+  const os = new OrderState()
+  os.status = 'Inactive'
+  os.rejectReason = rejectReason
+  os.warningText = warningText
+  return os
 }
 
 function pushUpdate(b: RequestBridge, contract: Contract, qty: number, avgCost = '100'): void {
@@ -31,6 +48,98 @@ describe('RequestBridge — error routing', () => {
     const b = new RequestBridge()
     // no pending request — must simply not throw
     expect(() => b.error(-1, 0, 2104, 'Market data farm connection is OK')).not.toThrow()
+  })
+})
+
+describe('RequestBridge — order reject observability', () => {
+  it('carries the venue rejectReason on the placeOrder result', async () => {
+    // A rejected FX order arrives via openOrder with status Inactive and the
+    // cause on orderState.rejectReason — that reason must reach the resolved
+    // CollectedOpenOrder (→ placeOrder result → TradingGit lifts it), not be
+    // flattened to a bare "Inactive".
+    const b = new RequestBridge()
+    const orderId = 7
+    const promise = b.requestOrder(orderId, 5000)
+    const os = inactive(
+      'Order rejected - reason: forex trading is not allowed for this account',
+      'Outside RTH',
+    )
+    b.openOrder(orderId, cashFx('EUR', 'USD'), new Order(), os)
+
+    const resolved = await promise
+    expect(resolved.orderState.status).toBe('Inactive')
+    expect(resolved.orderState.rejectReason).toContain('forex trading is not allowed')
+    expect(resolved.orderState.warningText).toBe('Outside RTH')
+  })
+
+  it('logs an order reject (status + reason) at warn level', () => {
+    const b = new RequestBridge()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const orderId = 8
+      const promise = b.requestOrder(orderId, 5000)
+      b.openOrder(orderId, cashFx('EUR', 'USD'), new Order(),
+        inactive('Order rejected - reason: forex trading is not allowed for this account'))
+      void promise.catch(() => {})
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      const line = warn.mock.calls[0]![0] as string
+      expect(line).toContain('order 8 Inactive')
+      expect(line).toContain('EUR.USD')
+      expect(line).toContain('forex trading is not allowed')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('does not log a clean Submitted order at warn level', () => {
+    const b = new RequestBridge()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const orderId = 9
+      const promise = b.requestOrder(orderId, 5000)
+      const os = new OrderState()
+      os.status = 'Submitted'
+      b.openOrder(orderId, stk(123, 'AAPL'), new Order(), os)
+      void promise.catch(() => {})
+
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('surfaces a venue order error that arrives after the order resolved', () => {
+    // openOrder-first ordering: the Inactive openOrder already resolved the
+    // request, so the trailing error() has no pending request to reject —
+    // it must still be logged, not silently swallowed.
+    const b = new RequestBridge()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const orderId = 10
+      // No pending request (already resolved by an earlier openOrder).
+      b.error(orderId, 0, 201, 'Order rejected - reason: forex trading is not allowed for this account')
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      const line = warn.mock.calls[0]![0] as string
+      expect(line).toContain('order 10 rejected by venue (201)')
+      expect(line).toContain('forex trading is not allowed')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('does not treat a data-request error (reqId ≥ 10000) as an order reject', () => {
+    const b = new RequestBridge()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      // reqId in the data-request range with no pending request — must NOT be
+      // logged as an order reject.
+      b.error(10_500, 0, 200, 'No security definition has been found')
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

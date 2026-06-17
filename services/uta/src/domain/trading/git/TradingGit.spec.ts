@@ -306,6 +306,56 @@ describe('TradingGit', () => {
       expect(result.submitted[0].status).toBe('rejected')
     })
 
+    it('surfaces IBKR rejectReason/warningText on a rejected order', async () => {
+      const orderState = new OrderState()
+      orderState.status = 'Inactive'
+      orderState.rejectReason = 'Order rejected - reason: forex order size 100 below IDEALPRO minimum'
+      orderState.warningText = 'Outside RTH'
+      const rejectedConfig = makeConfig({
+        executeOperation: vi.fn().mockResolvedValue({
+          success: true,
+          orderId: 'order-rejected',
+          orderState,
+        }),
+      })
+      const gitRejected = new TradingGit(rejectedConfig)
+
+      gitRejected.add(buyOp())
+      gitRejected.commit('probe order')
+      const result = await gitRejected.push()
+
+      // The venue reason must reach Alice — not a bare "rejected".
+      expect(result.submitted[0].status).toBe('rejected')
+      expect(result.submitted[0].error).toContain('below IDEALPRO minimum')
+      expect(result.submitted[0].error).toContain('Outside RTH')
+
+      // And onto the human-readable status log line.
+      const log = gitRejected.log({ limit: 1 })
+      expect(log[0].operations[0].change).toContain('rejected:')
+      expect(log[0].operations[0].change).toContain('below IDEALPRO minimum')
+    })
+
+    it('leaves a clean filled/submitted order without a bogus reason', async () => {
+      const orderState = new OrderState()
+      orderState.status = 'Filled'
+      // rejectReason/warningText default to '' — must not surface as an error.
+      const okConfig = makeConfig({
+        executeOperation: vi.fn().mockResolvedValue({
+          success: true,
+          orderId: 'order-ok',
+          orderState,
+        }),
+      })
+      const gitOk = new TradingGit(okConfig)
+
+      gitOk.add(buyOp())
+      gitOk.commit('clean fill')
+      const result = await gitOk.push()
+
+      expect(result.submitted[0].status).toBe('filled')
+      expect(result.submitted[0].error).toBeUndefined()
+    })
+
     it('records failed cancelOrder in rejected array', async () => {
       const failConfig = makeConfig({
         executeOperation: vi.fn().mockResolvedValue({

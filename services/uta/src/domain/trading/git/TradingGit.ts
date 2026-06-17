@@ -391,7 +391,10 @@ export class TradingGit implements ITradingGit {
           const price = result.execution?.price ? ` @${result.execution.price}` : ''
           return `${side} ${sizeStr}${price}`
         }
-        return `${side} ${sizeStr} (${result?.status || 'unknown'})`
+        // Carry the venue's reason onto the rejected status line — never a
+        // bare "(rejected)" with the cause buried on orderState.
+        const reason = result?.status === 'rejected' && result.error ? `: ${result.error}` : ''
+        return `${side} ${sizeStr} (${result?.status || 'unknown'}${reason})`
       }
 
       case 'closePosition': {
@@ -401,7 +404,8 @@ export class TradingGit implements ITradingGit {
           const qtyStr = qty ? ` (partial: ${qty})` : ''
           return `closed${qtyStr}${price}`
         }
-        return `close (${result?.status || 'unknown'})`
+        const reason = result?.status === 'rejected' && result.error ? `: ${result.error}` : ''
+        return `close (${result?.status || 'unknown'}${reason})`
       }
 
       case 'modifyOrder': {
@@ -864,13 +868,23 @@ export class TradingGit implements ITradingGit {
     const orderId = rawObj.orderId as string | undefined
     const orderState = rawObj.orderState as OperationResult['orderState']
     const legs = rawObj.legs as OperationResult['legs']
+    const status = this.mapOrderStatus(orderState)
+
+    // A venue rejection arrives as success:true + status Inactive — the
+    // reason lives on orderState (IBKR rejectReason/warningText, Alpaca
+    // rejectReason), never as a thrown error. Lift it into the first-class
+    // `error` so every Alice-facing surface (order history, push summary,
+    // the status log line) shows WHY instead of a bare "rejected". On a
+    // real-money account a reasonless reject is unacceptable.
+    const reason = status === 'rejected' ? this.orderStateReason(orderState) : undefined
 
     return {
       action: op.action,
       success: true,
       orderId,
-      status: this.mapOrderStatus(orderState),
+      status,
       orderState,
+      ...(reason ? { error: reason } : {}),
       ...(Array.isArray(legs) && legs.length > 0 ? { legs } : {}),
       raw,
     }
@@ -884,5 +898,15 @@ export class TradingGit implements ITradingGit {
       case 'Inactive': return 'rejected'
       default: return 'submitted'
     }
+  }
+
+  /** The venue's reason for a reject, joined from the OrderState fields IBKR
+   *  populates on a rejected/inactive order. Empty-string defaults are dropped
+   *  so a clean order never carries a bogus reason. */
+  private orderStateReason(orderState?: { rejectReason?: string; warningText?: string }): string | undefined {
+    const parts = [orderState?.rejectReason, orderState?.warningText]
+      .map((s) => s?.trim())
+      .filter((s): s is string => !!s)
+    return parts.length ? parts.join('; ') : undefined
   }
 }

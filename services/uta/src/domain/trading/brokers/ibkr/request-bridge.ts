@@ -39,9 +39,14 @@ import type {
 const DEFAULT_TIMEOUT_MS = 10_000
 const ACCOUNT_READY_TIMEOUT_MS = 20_000
 
+// reqIds are allocated from 10_000 up (allocReqId); TWS order ids are handed
+// out by nextValidId and live below that. The gap lets `error()` tell an
+// order reject apart from a data-request failure when only an id is in hand.
+const REQ_ID_BASE = 10_000
+
 export class RequestBridge extends DefaultEWrapper {
   // ---- State ----
-  private nextReqId_ = 10_000
+  private nextReqId_ = REQ_ID_BASE
   private nextOrderId_ = 0
   private accountId_: string | null = null
   private client_: EClient | null = null
@@ -421,6 +426,14 @@ export class RequestBridge extends DefaultEWrapper {
       this.rejectRequest(reqId, brokerError)
     } else if (this.orderPending.has(reqId)) {
       this.rejectOrderRequest(reqId, brokerError)
+    } else if (reqId < REQ_ID_BASE) {
+      // Order-range id with no pending request: the order already resolved
+      // (an Inactive `openOrder` arrived ahead of this `error()`), so the
+      // reject reason can no longer reach the placeOrder result. Surface it
+      // on the log rather than letting the venue's reason vanish — a silent
+      // reject on a real-money account is unacceptable (IBKR fresh-start
+      // Gate 2 observability).
+      console.warn(`IbkrBroker: order ${reqId} rejected by venue (${errorCode}): ${errorString}`)
     }
   }
 
@@ -636,15 +649,46 @@ export class RequestBridge extends DefaultEWrapper {
   // ---- Orders ----
 
   override openOrder(orderId: number, contract: Contract, order: Order, orderState: OrderState): void {
+    const isPending = this.orderPending.has(orderId)
+
+    // The order-status log line. A venue reject arrives here as status
+    // 'Inactive' with the cause on orderState.rejectReason / warningText —
+    // surface status + reason + contract/order context so a reject is never
+    // silent (and `orderState` carries the reason on to the placeOrder
+    // result, where TradingGit lifts it into the first-class error). The
+    // verbose (non-reject) line is gated to the placeOrder/modifyOrder path
+    // so the reqOpenOrders batch doesn't re-log every live order each poll.
+    this.logOrderOutcome(orderId, contract, order, orderState, isPending)
+
     const collected: CollectedOpenOrder = { contract, order, orderState }
 
     // Route to pending order request (placeOrder/modifyOrder)
-    if (this.orderPending.has(orderId)) {
+    if (isPending) {
       this.resolveOrderRequest(orderId, collected)
     }
 
     // Also collect for openOrders batch
     this.openOrdersCollector?.orders.push(collected)
+  }
+
+  /** One line carrying status + the venue's reject reason (rejectReason/
+   *  warningText) + just enough contract/order context to tell which order it
+   *  was. Rejects (status 'Inactive') always log at warn; other statuses log
+   *  only on the placeOrder/modifyOrder path (`verbose`) to keep the
+   *  reqOpenOrders batch quiet. Observability only — no control-flow effect. */
+  private logOrderOutcome(orderId: number, contract: Contract, order: Order, orderState: OrderState, verbose: boolean): void {
+    const isReject = orderState.status === 'Inactive'
+    if (!isReject && !verbose) return
+    const reason = [orderState.rejectReason, orderState.warningText]
+      .map((s) => s?.trim())
+      .filter((s): s is string => !!s)
+      .join('; ')
+    const symbol = contract.localSymbol || contract.symbol || `conId=${contract.conId}`
+    const ctx = `${order.action ?? ''} ${order.totalQuantity ?? ''} ${symbol} ${contract.secType ?? ''}/${contract.currency ?? ''}`.trim()
+    const tail = reason ? ` — rejectReason: "${reason}"` : ''
+    const line = `IbkrBroker: order ${orderId} ${orderState.status} [${ctx}]${tail}`
+    if (isReject) console.warn(line)
+    else console.log(line)
   }
 
   override orderStatus(

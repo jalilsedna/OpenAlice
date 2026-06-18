@@ -66,16 +66,33 @@
     "directories": {
       "output": "dist/electron-app"
     },
+    "electronVersion": "39.8.10",
+    "asar": false,
     "files": [
-      "dist/main.js",
+      "dist/*.js",
       "dist/electron/**",
       "ui/dist/**",
       "default/**",
       "src/workspaces/cli/**",
+      "src/workspaces/templates/**",
+      "services/uta/dist/**",
+      "services/uta/package.json",
       "package.json"
     ],
     "mac": {
-      "target": "dir"
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "pnpm": {

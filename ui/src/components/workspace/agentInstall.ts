@@ -30,8 +30,8 @@ export const AGENT_INSTALL: Record<string, AgentInstallHint> = {
     url: 'https://opencode.ai',
   },
   pi: {
-    // pi (earendil-works/pi) — package name varies by release; link the repo
-    // rather than risk a stale `npm i -g` line.
+    // pi (earendil-works/pi) — ships the `pi` bin from this package.
+    cmd: 'npm install -g @earendil-works/pi-coding-agent',
     url: 'https://github.com/earendil-works/pi',
   },
 }

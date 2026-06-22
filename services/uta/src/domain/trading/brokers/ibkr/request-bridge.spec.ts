@@ -51,6 +51,26 @@ describe('RequestBridge — error routing', () => {
   })
 })
 
+describe('RequestBridge — connect handshake', () => {
+  it('rejects waitForConnect (not unhandled) when the socket closes mid-handshake', async () => {
+    // Regression: a close during the handshake calls connectionClosed() →
+    // connectReject() while client.connect() is still suspended in
+    // waitForHandshake(). The old code only attached a handler to the connect
+    // promise AFTER `await client.connect()`, so the rejection escaped as an
+    // unhandled rejection and crashed the UTA process (Railway: no TWS/Gateway
+    // reachable → guardian cascade shutdown).
+    const b = new RequestBridge()
+    // connect() that never settles — mirrors being stuck in waitForHandshake.
+    const fakeClient = { connect: () => new Promise<void>(() => {}) } as unknown as Parameters<typeof b.waitForConnect>[0]
+
+    const p = b.waitForConnect(fakeClient, '127.0.0.1', 7497, 0, 60_000)
+    const assertion = expect(p).rejects.toThrow(/closed during handshake/)
+    // Socket dies before the handshake completes.
+    b.connectionClosed()
+    await assertion
+  })
+})
+
 describe('RequestBridge — order reject observability', () => {
   it('carries the venue rejectReason on the placeOrder result', async () => {
     // A rejected FX order arrives via openOrder with status Inactive and the

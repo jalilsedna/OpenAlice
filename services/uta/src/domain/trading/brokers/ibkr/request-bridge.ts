@@ -132,18 +132,27 @@ export class RequestBridge extends DefaultEWrapper {
   ): Promise<void> {
     this.client_ = client
 
+    let timer: ReturnType<typeof setTimeout>
     const promise = new Promise<void>((resolve, reject) => {
       this.connectResolve = resolve
       this.connectReject = reject
-      setTimeout(() => {
+      timer = setTimeout(() => {
         this.connectResolve = null
         this.connectReject = null
         reject(new BrokerError('NETWORK', `Connection to TWS/Gateway timed out after ${timeoutMs}ms`))
       }, timeoutMs)
     })
+    // Stop the timeout from settling an already-resolved/rejected promise and
+    // from holding the event loop open.
+    promise.finally(() => clearTimeout(timer)).catch(() => {})
 
-    await client.connect(host, port, clientId)
-    return promise
+    // Drive the transport connect concurrently and await BOTH. This attaches a
+    // rejection handler to `promise` SYNCHRONOUSLY (before any socket event can
+    // fire), so a close during the handshake — which calls connectionClosed()
+    // → connectReject() while client.connect() is still suspended in
+    // waitForHandshake() — rejects through here instead of escaping as an
+    // unhandled rejection that crashes the UTA process.
+    await Promise.all([promise, client.connect(host, port, clientId)])
   }
 
   // ---- Mode A: reqId-based requests ----

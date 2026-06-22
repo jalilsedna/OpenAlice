@@ -67,7 +67,9 @@ Notes:
 
 ### Cross-platform note
 
-Workspace bootstrap scripts (`src/workspaces/templates/*/bootstrap.sh`) are bash-based. On Windows they require `bash` from Git for Windows (default install) or WSL2. `workspace-creator.ts` already platform-branches the spawn so the same script paths work on win32 — when adding a new template, write bash as usual, but **don't** add POSIX-only commands without checking they ship with Git for Windows's bundled MSYS env (sed/cp/mkdir/basename/printf/source/[[ ]] all work; obscure tools like `jq` do not). See README's *Windows* section for the user-facing story.
+Workspace bootstrap is **cross-platform Node** — built-in templates ship `src/workspaces/templates/<name>/bootstrap.mjs` (plain ESM, no TypeScript syntax). The launcher (`workspace-creator.ts` `runScript`) spawns them on the Electron-bundled Node (`process.execPath` + `ELECTRON_RUN_AS_NODE`), and **all git goes through bundled git** (`dugite`) via `_common.mjs`'s `git()` helper. Net effect: workspace creation works on a **bare Windows or bare Mac** — no bash, no Git for Windows, no system git. When adding a template, write a `bootstrap.mjs` that imports `../_common.mjs` (`initWorkspaceDir` / `copyReadme` / `setupGitExcludes` / `git`) and routes every git call through `git()` — never `spawn('git')`.
+
+`bootstrap.sh` is still supported as a **fallback** for third-party/satellite templates that ship bash (`template-registry` prefers `.mjs`, falls back to `.sh`); those only run where `bash` is on PATH (Git for Windows / WSL2). Don't add new `.sh` bootstraps for in-repo templates. The critical packaging invariant: `dugite` must stay in `pnpm.onlyBuiltDependencies` (its postinstall fetches the per-platform git; drop it and `node_modules/dugite/git/` is silently empty — release CI asserts it's present). See README's *Windows* section for the user-facing story.
 
 ## Subsystem guides
 
@@ -239,7 +241,7 @@ src/                           # Alice process — agent runtime
 │                              # probe, file/git services for in-workspace
 │                              # ops, persistent-session reattach.
 │   ├── adapters/              # claude.ts / codex.ts / opencode.ts / pi.ts / shell.ts
-│   └── templates/             # auto-quant, chat, finance-research
+│   └── templates/             # auto-quant, chat
 ├── services/                  # Cross-cutting services Alice itself owns.
 │   ├── auth/                  # Admin-token store + session-store
 │   ├── uta-client/            # SDK adapters mirroring UTA's in-process
@@ -287,24 +289,64 @@ ui/                            # React frontend (Vite). auth/ holds the
                                # login gate; lives outside `src/` because
                                # it ships separately.
 
-data/                          # All persistent state. Lives at
-                               # ~/.openalice/data by default — ONE global
-                               # store shared by pnpm dev / pnpm start /
-                               # the packaged app (configure brokers once,
-                               # not per checkout). OPENALICE_HOME overrides
-                               # the root: Docker sets /data; use
-                               # OPENALICE_HOME="$PWD" pnpm dev to pin a
-                               # checkout-local store when an experimental
-                               # branch shouldn't touch real data (its
-                               # migrations run against the real store
-                               # otherwise!). accounts.json is sealed at
-                               # rest (src/core/sealing.ts; key at
-                               # ~/.openalice/sealing.key, outside data/).
-                               # e2e suites read broker creds from the
-                               # global store — adopt a legacy checkout's
-                               # data/ first (the dev banner shows the mv).
-                               # Layout: config/, sessions/, trading/,
-                               # control/ (UTA restart flag), backups, etc.
+data/                          # PORTABLE user state — the back-up / migrate /
+                               # share unit at ~/.openalice/data (default). ONE
+                               # global store shared by pnpm dev / pnpm start /
+                               # the packaged app — configure brokers once, not
+                               # per checkout. OPENALICE_HOME moves THIS root
+                               # (and the sealing.key beside it): Docker sets
+                               # /data; OPENALICE_HOME="$PWD" pnpm dev pins a
+                               # checkout-local data store so an experimental
+                               # branch won't touch real data (migrations run
+                               # against the real store otherwise!). NOTE:
+                               # OPENALICE_HOME moves ONLY data/ — workspaces/
+                               # and provider-keys.json have their own env vars
+                               # (AQ_LAUNCHER_ROOT, OPENALICE_GLOBAL_DIR) and
+                               # stay global BY DESIGN: data/ is the portable
+                               # per-home unit, but workspaces are user-level
+                               # git-heavy assets you keep across checkouts (and
+                               # they run no migrations, so the data-corruption
+                               # risk doesn't apply). Set AQ_LAUNCHER_ROOT too
+                               # for checkout-local workspaces. accounts.json +
+                               # auth.json sealed at
+                               # rest (src/core/sealing.ts); the AES key lives
+                               # BESIDE data/ under the same OPENALICE_HOME root
+                               # (~/.openalice/sealing.key) but OUTSIDE the data/
+                               # subtree, so a data/-only backup can't decrypt.
+                               # e2e suites read creds from the global store —
+                               # adopt a legacy checkout's data/ first (dev
+                               # banner shows the mv). Subdirs (via dataPath()):
+                               # config/ (JSON + sealed accounts/auth +
+                               # _meta.json migration journal), _backup/,
+                               # sessions/ (web/admin JSONL — NOT workspace
+                               # sessions), trading/<id>/, control/ (UTA restart
+                               # flag), cron/, event-log/, tool-calls/,
+                               # news-collector/, inbox/, entities/, media/,
+                               # cache/, brain/ (legacy persona, dormant).
+
+workspaces/                    # WORKSPACE LAUNCHER ROOT — a SIBLING global root
+                               # of data/, at ~/.openalice/workspaces. Governed
+                               # by AQ_LAUNCHER_ROOT, else a homedir() default
+                               # that does NOT follow OPENALICE_HOME — by design:
+                               # workspaces are user-level git repos (Auto-Quant
+                               # etc.) kept across checkouts, running no
+                               # migrations. Guardian sets OPENALICE_HOME but NOT
+                               # AQ_LAUNCHER_ROOT, so even OPENALICE_HOME="$PWD"
+                               # leaves workspaces global; set AQ_LAUNCHER_ROOT
+                               # to isolate them. Holds: workspaces.json
+                               # (registry); state/sessions/<wsId>.json
+                               # (per-workspace PTY resume records — the OTHER
+                               # session store); state/scrollback/<wsId>/ (PTY
+                               # replay); state/headless-tasks.json +
+                               # headless-logs/ (headless run plane);
+                               # workspaces/<wsId>/ (one git checkout per
+                               # workspace = the agent's project root);
+                               # auto-quant-mirror/ (shared quant template
+                               # clone). Also siblings under ~/.openalice (NOT
+                               # in data/ or workspaces/): sealing.key (above) +
+                               # provider-keys.json (user-global vendor API
+                               # keys, OPENALICE_GLOBAL_DIR, merged at config
+                               # load, local data/config values win).
 ```
 
 ## Key Architecture
@@ -431,7 +473,10 @@ headless workspace dispatch (cron → workspace).
 - Strict TypeScript, ES2023 target
 - Zod for config, TypeBox for tool parameter schemas
 - `decimal.js` for financial math
-- Pino logger → `logs/engine.log`
+- Logging: the workspace launcher writes structured JSON to
+  `logs/workspace-sessions.log` (`src/workspaces/logger.ts`); the main
+  process logs via `console`. (`pino` is a declared dep but currently
+  unused — don't assume a central pino sink exists.)
 
 ## Git Workflow
 
@@ -493,6 +538,33 @@ flow.
 **Bypass requires explicit verbal override** from the user for the
 specific PR ("evaluate #N anyway, I know the author"), not a general
 "go ahead" earlier in the session.
+
+### Recognizing contributors — credit, don't merge
+
+We refuse external code, but the project stays open and community ideas /
+reports / designs genuinely shape it. Recognizing those people is deliberate
+operations (part of the growth flywheel), not a courtesy. It lives in two
+**hand-maintained** files — no script; the volume doesn't justify one:
+
+- **`CONTRIBUTORS.md`** — the credits ledger + a short "how recognition works"
+  guide. Each entry links to the actual change the person influenced, so it's a
+  record, not just a name on a wall.
+- **`README.md` → `## Contributors`** — the avatar wall + a pointer to the ledger.
+- Not to be confused with **`CONTRIBUTING.md`** (the rules doc). Mnemonic:
+  `-ING` = how to contribute; `-ORS` = who contributed.
+
+**To credit someone** (maintainer's call; standouts ⭐ go on top): hand-edit
+`CONTRIBUTORS.md` using the row template in its HTML comment — the avatar is free
+from `https://github.com/<handle>.png` (no token), link the "Shaped" cell to the
+PR / commit / issue they moved, pick a credit emoji from the list at the top of
+the file. Optionally add them to the README wall too.
+
+**IP-clean rule — NEVER `Co-Authored-By:` for a human.** That trailer asserts
+co-authorship (a copyright claim), which breaks the single-owner stance that is
+the whole reason we don't merge external code. Credit humans via the
+`CONTRIBUTORS` page, and — only if you want a git-level record — a non-authorship
+trailer (`Suggested-by:` / `Reported-by:` / `Reviewed-by: @handle`). Claude's
+`Co-Authored-By:` stays as-is (an AI asserts no copyright).
 
 ### Two collaboration modes — pick the right one first
 

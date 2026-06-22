@@ -30,6 +30,20 @@ export interface SpawnContext {
    * cross-CLI MCP definition into their own native command flags.
    */
   readonly env: Readonly<Record<string, string>>;
+  /**
+   * Seed a freshly-spawned INTERACTIVE TUI with a first user message — the
+   * "quick chat" launch ("type a message → you're in, agent already working").
+   * Unlike `composeHeadlessCommand`'s prompt (one-shot, exits at the turn
+   * boundary), this rides the interactive `composeCommand`: each agent CLI
+   * accepts a first prompt that opens the TUI and auto-submits it (claude/codex
+   * positional after `--`; opencode `--prompt`; pi trailing positional).
+   *
+   * ONLY honored on a FRESH spawn (`resume` undefined) — seeding a prompt while
+   * also resuming is ambiguous on codex's `resume <id>` subcommand and pi's
+   * `--session-id`, so adapters MUST ignore it when resuming. `shell` ignores
+   * it entirely (no agent to receive a prompt).
+   */
+  readonly initialPrompt?: string;
 }
 
 export interface BootstrapContext {
@@ -83,6 +97,14 @@ export interface CliAdapter {
   readonly id: string;                          // 'claude' | 'codex' | 'shell'
   readonly displayName: string;
   /**
+   * Canonical PATH binary name this adapter spawns (`claude`, `codex`,
+   * `opencode`, `pi`). Consumed by `agent-detect.ts` to tell the frontend
+   * whether the runtime is actually installed on the host. Omit for adapters
+   * that always resolve (e.g. `shell` runs `$SHELL`, present on any box) —
+   * those are reported as installed unconditionally.
+   */
+  readonly binary?: string;
+  /**
    * Short prefix used to name sessions (e.g. `c1`, `x1`, `sh1`). Helps scan a
    * mixed sidebar tree. Defaults to `id[0]` if omitted, but adapters whose
    * first character collides with another adapter (claude / codex both 'c')
@@ -122,6 +144,12 @@ export interface CliAdapter {
    * For codex (M2):
    *   base + 'last'    → [...base, 'resume', '--last']
    *   base + { id }    → [...base, 'resume', id]
+   *
+   * On a FRESH spawn (`resume` undefined) with `ctx.initialPrompt` set, the
+   * adapter ALSO appends the prompt at the CLI's interactive-seed position so
+   * the TUI opens already working on it (claude/codex positional after `--`;
+   * opencode `--prompt`; pi trailing positional). Ignored when resuming; `shell`
+   * ignores it always.
    */
   composeCommand(base: readonly string[], ctx: SpawnContext): readonly string[];
 

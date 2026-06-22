@@ -78,16 +78,20 @@ export async function listWorkspaces(): Promise<Workspace[]> {
   return body.workspaces;
 }
 
+/**
+ * Create a workspace. `agents` is optional and normally omitted — the backend
+ * owns the "every registered adapter, template-headed" policy (see
+ * `WorkspaceCreator.create`). Pass an explicit set only to pin a subset.
+ */
 export async function createWorkspace(
   tag: string,
   template: string,
-  agents: readonly string[],
-  toolAccess?: 'mcp' | 'cli',
+  agents?: readonly string[],
 ): Promise<CreateResult> {
   const res = await fetch('/api/workspaces', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ tag, template, agents, toolAccess }),
+    body: JSON.stringify(agents && agents.length > 0 ? { tag, template, agents } : { tag, template }),
   });
   if (res.ok) {
     const body = (await res.json()) as { workspace: Workspace };
@@ -166,6 +170,14 @@ export interface AgentInfo {
   readonly id: string;
   readonly displayName: string;
   readonly capabilities: AgentCapabilities;
+  /**
+   * Whether the runtime's CLI was found on the host PATH. Backend-probed per
+   * list call (see src/workspaces/agent-detect.ts). Optional for backward
+   * compat — treat a missing value as installed (don't gate on a stale shape).
+   */
+  readonly installed?: boolean;
+  /** Absolute path the CLI resolved to, when installed. */
+  readonly binPath?: string | null;
 }
 
 export async function listAgents(): Promise<AgentInfo[]> {
@@ -193,6 +205,8 @@ export interface SessionRecord {
   readonly agentSessionId: string | null;
   readonly pid: number | null;
   readonly startedAt: number | null;
+  /** First message (seeded sessions) — the sidebar title; null → fall back to `name`. */
+  readonly title: string | null;
 }
 
 export interface SpawnedSession {
@@ -203,6 +217,7 @@ export interface SpawnedSession {
   readonly startedAt: number;
   readonly agent: string;
   readonly agentSessionId: string | null;
+  readonly title: string | null;
 }
 
 export interface SpawnOptions {
@@ -210,6 +225,12 @@ export interface SpawnOptions {
   readonly resume?: 'last' | string;
   /** Override workspace's default adapter (workspace.agents[0]). */
   readonly agent?: string;
+  /**
+   * Seed a FRESH session with a first user message — the quick-chat launch
+   * ("type a message → you're in, agent already working"). Server-side it rides
+   * the adapter's interactive `composeCommand`; ignored when `resume` is set.
+   */
+  readonly initialPrompt?: string;
 }
 
 export async function spawnSession(
@@ -219,6 +240,7 @@ export async function spawnSession(
   const body: Record<string, unknown> = {};
   if (opts.resume !== undefined) body['resume'] = opts.resume;
   if (opts.agent !== undefined) body['agent'] = opts.agent;
+  if (opts.initialPrompt !== undefined) body['initialPrompt'] = opts.initialPrompt;
   const res = await fetch(
     `/api/workspaces/${encodeURIComponent(id)}/sessions/spawn`,
     {
@@ -232,6 +254,48 @@ export async function spawnSession(
     throw new Error(`spawn session failed: ${res.status} ${msg}`);
   }
   return (await res.json()) as SpawnedSession;
+}
+
+/** Response of the quick-chat launch: the (reused-or-created) chat workspace + the seeded session. */
+export interface QuickChatResult {
+  readonly workspace: Workspace;
+  readonly session: SpawnedSession;
+}
+
+/** Error thrown by `quickChat`, carrying the backend error `code` when present
+ *  (e.g. `no_ai_credential` → the composer bounces the user to Settings). */
+export class QuickChatError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+    this.name = 'QuickChatError';
+  }
+}
+
+/**
+ * Quick-chat launch — the "type a message → you're in" front door. One POST
+ * reuses-or-creates the chat workspace and spawns a fresh session seeded with
+ * `prompt`; the returned `session.sessionId` is what the caller attaches to.
+ * `credentialSlug` seeds a loginless runtime (opencode/pi) — ignored for
+ * claude/codex, which carry their own CLI login.
+ */
+export async function quickChat(
+  prompt: string,
+  agent?: string,
+  credentialSlug?: string,
+): Promise<QuickChatResult> {
+  const body: Record<string, unknown> = { prompt };
+  if (agent !== undefined) body['agent'] = agent;
+  if (credentialSlug !== undefined) body['credentialSlug'] = credentialSlug;
+  const res = await fetch('/api/workspaces/quick-chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new QuickChatError(`quick chat failed: ${res.status} ${parsed?.error ?? ''}`, parsed?.error);
+  }
+  return (await res.json()) as QuickChatResult;
 }
 
 /** Pause a session — kills its PTY but keeps the record so it can be resumed later. */
@@ -417,7 +481,10 @@ export interface SavedCredential {
   readonly authType: 'api-key' | 'subscription';
   /** Wire capabilities: each shape this key speaks → its endpoint baseUrl. */
   readonly wires: Partial<Record<WireShape, string>>;
-  readonly apiKey: string | null;
+  /** Last model run against this key, when remembered. Absent until first use. */
+  readonly lastModel?: string;
+  /** Omitted in the per-agent (`?agent=`) listing — only the unfiltered list returns it. */
+  readonly apiKey?: string | null;
 }
 
 export async function listCredentials(): Promise<SavedCredential[]> {
@@ -425,6 +492,26 @@ export async function listCredentials(): Promise<SavedCredential[]> {
   if (!res.ok) throw new Error(`list credentials failed: ${res.status}`);
   const body = (await res.json()) as { credentials: SavedCredential[] };
   return body.credentials;
+}
+
+/** List only the credentials the given agent can be driven by (wire-compatible). */
+export async function listAgentCredentials(agent: string): Promise<SavedCredential[]> {
+  const res = await fetch(`/api/workspaces/credentials?agent=${encodeURIComponent(agent)}`);
+  if (!res.ok) throw new Error(`list agent credentials failed: ${res.status}`);
+  const body = (await res.json()) as { credentials: SavedCredential[] };
+  return body.credentials;
+}
+
+/** Which vault credential a workspace's agent is currently configured with (null = none/hand-edited). */
+export async function detectWorkspaceCredential(
+  wsId: string,
+  agent: string,
+): Promise<{ slug: string | null; model: string | null }> {
+  const res = await fetch(
+    `/api/workspaces/${encodeURIComponent(wsId)}/agent-config/${encodeURIComponent(agent)}/credential`,
+  );
+  if (!res.ok) return { slug: null, model: null };
+  return (await res.json()) as { slug: string | null; model: string | null };
 }
 
 /** Persist a hand-entered provider as a reusable central credential. Returns the slug. */
